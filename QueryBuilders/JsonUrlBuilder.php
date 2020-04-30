@@ -97,8 +97,8 @@ class JsonUrlBuilder extends AbstractUrlBuilder
         // Create JSON objects from value query parts
         $json_objects = $this->buildRequestBodyObjects(static::OPERATION_CREATE);
         
-        $insert_ids = array();
-        $uidAlias = $this->getMainObject()->getUidAttributeAlias();
+        $insert_ids = [];
+        $uidAlias = $this->getMainObject()->hasUidAttribute() ? $this->getMainObject()->getUidAttributeAlias() : null;
         $data_path = $this->getMainObject()->getDataAddressProperty('create_request_data_path');
         foreach ($json_objects as $obj) {
             $request = $this->buildRequestPutPostDelete(static::OPERATION_CREATE, $obj, $data_path);
@@ -108,7 +108,9 @@ class JsonUrlBuilder extends AbstractUrlBuilder
             if (is_array($result)) {
                 $result_data = $this->findRowData($result, $data_path);
             }
-            $insert_ids[] = [$uidAlias => $this->findFieldInData($this->buildDataAddressForAttribute($this->getMainObject()->getUidAttribute()), $result_data)];
+            if ($uidAlias) {
+                $insert_ids[] = [$uidAlias => $this->findFieldInData($this->buildDataAddressForAttribute($this->getMainObject()->getUidAttribute()), $result_data)];
+            }
         }
         
         return new DataQueryResultData($insert_ids, count($insert_ids), false);
