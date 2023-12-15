@@ -18,6 +18,7 @@ use exface\Core\Interfaces\Model\CompoundAttributeInterface;
 use exface\Core\CommonLogic\QueryBuilder\QueryPartAttribute;
 use exface\Core\CommonLogic\Model\Aggregator;
 use exface\Core\DataTypes\ArrayDataType;
+use exface\Core\Interfaces\DataSheets\DataSheetInterface;
 
 /**
  * This is a query builder for JSON-based REST APIs.
@@ -99,23 +100,63 @@ class JsonUrlBuilder extends AbstractUrlBuilder
         $json_objects = $this->buildRequestBodyObjects(static::OPERATION_CREATE);
         
         $insert_ids = [];
-        $uidAlias = $this->getMainObject()->hasUidAttribute() ? $this->getMainObject()->getUidAttributeAlias() : null;
         $data_path = $this->getMainObject()->getDataAddressProperty(static::DAP_CREATE_REQUEST_DATA_PATH);
-        foreach ($json_objects as $obj) {
-            $request = $this->buildRequestPutPostDelete(static::OPERATION_CREATE, $obj, $data_path);
-            $query = new Psr7DataQuery($request);
-                        
-            $result = $this->parseResponse($data_connection->query($query));
-            if (is_array($result)) {
-                $result_data = $this->findRowData($result, $data_path);
-            }
-            if ($uidAlias) {
-                $insert_ids[] = [$uidAlias => $this->findFieldInData($this->buildDataAddressForAttribute($this->getMainObject()->getUidAttribute()), $result_data)];
-            }
-        }
         
-        return new DataQueryResultData($insert_ids, count($insert_ids), false);
+        // all in one request
+        if (! $this->getMainObject()->hasUidAttribute()){        	
+        	$request = $this->buildRequest($json_objects, static::OPERATION_CREATE, $data_path);
+        	$query = new Psr7DataQuery($request);
+        	$result = $this->parseResponse($data_connection->query($query));
+        }
+        else {        	
+        	$uidAlias = $this->getMainObject()->hasUidAttribute() ? 
+        		$this->getMainObject()->getUidAttributeAlias() : null;
+        	
+        	foreach ($json_objects as $obj) {
+        		$request = $this->buildRequestPutPostDelete(static::OPERATION_CREATE, $obj, $data_path);
+        		$query = new Psr7DataQuery($request);
+        		
+        		$result = $this->parseResponse($data_connection->query($query));
+        		if (is_array($result)) {
+        			$result_data = $this->findRowData($result, $data_path);
+        		}
+        		if ($uidAlias) {
+        			$insert_ids[] = [$uidAlias => $this->findFieldInData(
+        				$this->buildDataAddressForAttribute($this->getMainObject()->getUidAttribute()), $result_data)];
+        		}
+        	}
+        	
+        	return new DataQueryResultData($insert_ids, count($insert_ids), false);
+        }
     }
+    
+	/**
+	 * @param json_objects
+	 * @param data_path
+	 * @param $operation
+	 */
+    private function buildRequest(array $json_objects, string $operation, string $data_path = null) : RequestInterface
+	{
+		$uri = $this->buildDataAddressForObject($this->getMainObject(), $this->getHttpMethod($operation));
+		$uri = $this->replacePlaceholdersInUrl($uri);
+		
+		$json = new \stdClass();
+		if ($data_path) {
+			$level = & $json;
+			foreach ($this->dataPathSplit($data_path) as $step) {
+				$level->$step = new \stdClass();
+				$level = & $level->$step;
+			}
+			$level = $json_objects;
+		} else {
+			$json = $json_objects;
+		}
+		
+		$request = new Request($this->getHttpMethod($operation), $uri, $this->getHttpHeaders($operation), $this->encodeBody($json));
+		
+		return $request;
+	}
+
     
     protected function buildRequestPutPostDelete(string $operation, $jsonObject, string $dataPath = null) : RequestInterface
     {
@@ -158,16 +199,19 @@ class JsonUrlBuilder extends AbstractUrlBuilder
     {
         $json_objects = array();
         foreach ($this->getValues() as $qpart) {
-            // Ignore values, that do not belong to attributes
-            try {
-                $attr = $qpart->getAttribute();
-            } catch (MetaAttributeNotFoundError $e) {
-                continue;
+            // Ignore invalid values
+            switch (true)
+            {
+            	case $qpart instanceof QueryPartAttribute:
+            	case $this->isPartOfUrl($qpart):
+            		continue;
             }
             
+            $attr = $qpart->getAttribute();            
             // Ignore values of related attributes
             if (! $attr->getRelationPath()->isEmpty()){
-                $this->getWorkbench()->getLogger()->notice('JsonUrlBuilder cannot perform create-operations on related attributes: skipping "' . $attr->getAliasWithRelationPath() . '" of object "' . $this->getMainObject()->getAliasWithNamespace() . '"!');
+                $this->getWorkbench()->getLogger()->notice('JsonUrlBuilder cannot perform create-operations on related attributes: skipping "' 
+                	. $attr->getAliasWithRelationPath() . '" of object "' . $this->getMainObject()->getAliasWithNamespace() . '"!');
                 continue;
             }
             // Handle compound attributes
@@ -325,9 +369,9 @@ class JsonUrlBuilder extends AbstractUrlBuilder
      * @param QueryPartAttribute $qpart
      * @param array $row
      * @param string $path
-     * @return unknown
+     * @return mixed
      */
-    protected function getValueFromRowViaXPath(QueryPartAttribute $qpart, array $row, string $path)
+    protected function getValueFromRowViaXPath(QueryPartAttribute $qpart, array $row, string $path) : mixed
     {
         $val = ArrayDataType::filterXPath($row, $path);
         
