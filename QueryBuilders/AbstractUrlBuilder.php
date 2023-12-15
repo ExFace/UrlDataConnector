@@ -877,8 +877,10 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
     {
         $filterGroup = $filterGroup ?? $this->getFilters();
         foreach (StringDataType::findPlaceholders($url_string) as $ph) {
+        	$foundPlaceholder = false;
             if ($ph_filter = $filterGroup->findFilterByAlias($ph)) {
                 if (! is_null($ph_filter->getCompareValue())) {
+                	$foundPlaceholder = true;
                     if ($this->getRequestSplitFilter() == $ph_filter && $ph_filter->getComparator() == ComparatorDataType::IN) {
                         $ph_value = explode($ph_filter->getValueListDelimiter(), $ph_filter->getCompareValue())[0];
                     } else {
@@ -887,13 +889,35 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
                     $this->setUrlPlaceholderValue($ph, $ph_value);
                     $url_string = str_replace('[#' . $ph . '#]', $ph_value, $url_string);
                 } 
-            } else {
+            } 
+            
+            if ($foundPlaceholder === null) {
                 foreach ($this->getFilters()->getFilters() as $qpart) {
                     if ($qpart->isCompound() && $qpart->getAttribute() instanceof CompoundAttributeInterface) {
-                        $url_string = $this->replacePlaceholdersInUrl($url_string, false, $qpart->getCompoundFilterGroup());
+                        $urlOrFalse= $this->replacePlaceholdersInUrl($url_string, false, $qpart->getCompoundFilterGroup());    
+                        
+                        if ($urlOrFalse !== false){
+                        	$foundPlaceholder = true;
+                        	$url_string = $urlOrFalse;                 
+                        }
                     }
                 }                
-            }
+            } 
+            
+            if ($foundPlaceholder === false) {
+            	foreach ($this->getValues() as $query_part){
+            		if ($ph == $query_part->getAttribute()->getAliasWithRelationPath()){
+            			$values = $query_part->getValues();
+            			$values = array_unique($values);
+            			
+            			if (count($values) === 1){
+            				$ph_value = $values[0];
+            				$url_string = str_replace('[#' . $ph . '#]', $ph_value, $url_string);
+            				break;
+            			}
+            		}
+            	}
+            }            
         }
         
         if ($strict === true && empty(StringDataType::findPlaceholders($url_string)) === false) {
@@ -1579,5 +1603,16 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
     {
         $this->subrequestNo = $number;
         return $this;
+    }
+    
+    protected function isPartOfUrl(QueryPartAttribute $queryPartAttribute) : bool 
+    {
+    	switch (true){
+    		case mb_stripos($queryPartAttribute->getDataAddress(), '[#~urlplaceholder:') !== false:
+    		case mb_stripos($queryPartAttribute->getDataAddress(), '[#~urlparam:') !== false:
+    			return true;
+    		default:
+    			return false;
+    	}
     }
 }
