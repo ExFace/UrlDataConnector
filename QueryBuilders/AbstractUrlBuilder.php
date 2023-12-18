@@ -1605,7 +1605,23 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
         return $this;
     }
     
-    protected function isPartOfUrl(QueryPartAttribute $queryPartAttribute) : bool 
+    /** Checks if the query part is part of body.
+     * This is a function that will grow with the possible properties of a query part and where it can be found.
+     * 
+     * @param QueryPartAttribute $queryPartAttribute
+     * @return bool
+     */
+    protected function isPartOfBody(QueryPartAttribute $queryPartAttribute) : bool
+    {
+    	return !$this->isPartOfUrl($queryPartAttribute);
+    }
+    
+    /** Every query part that is part of an url must be a placeholder, since we find it's value within the request url.
+     * 
+     * @param QueryPartAttribute $queryPartAttribute
+     * @return bool
+     */
+    protected function isPartOfUrl(QueryPartAttribute $queryPartAttribute) : bool
     {
     	switch (true){
     		case mb_stripos($queryPartAttribute->getDataAddress(), '[#~urlplaceholder:') !== false:

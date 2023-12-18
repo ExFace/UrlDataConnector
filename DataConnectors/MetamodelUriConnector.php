@@ -84,6 +84,7 @@ class MetamodelUriConnector extends AbstractUrlConnector
             	$ds->dataRead();
                 $bodyCol->setValue(0, $request->getBody()->__toString());
                 $ds->dataUpdate(false);
+                $response = new Response(201, []);
                 break;
             case 'DELETE':
             	$ds->getColumns()->addFromSystemAttributes();
@@ -96,9 +97,10 @@ class MetamodelUriConnector extends AbstractUrlConnector
 
         if ($ds->isEmpty()) {
             $response = new Response(404);
-        } else {
+        } else if ($response === null) {
             $response = new Response(200, [], $bodyCol->getValue(0));
         }
+
         $query->setResponse($response);
         return $query;
     }
