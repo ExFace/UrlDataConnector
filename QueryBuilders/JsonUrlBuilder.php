@@ -106,7 +106,10 @@ class JsonUrlBuilder extends AbstractUrlBuilder
         if (! $this->getMainObject()->hasUidAttribute()){        	
         	$request = $this->buildRequest($json_objects, static::OPERATION_CREATE, $data_path);
         	$query = new Psr7DataQuery($request);
-        	$result = $this->parseResponse($data_connection->query($query));
+        	$response = $data_connection->query($query);
+        	$result = $this->parseResponse($response) ?? [];
+        	
+        	return new DataQueryResultData($result, 1);
         }
         else {        	
         	$uidAlias = $this->getMainObject()->hasUidAttribute() ? 
@@ -231,7 +234,9 @@ class JsonUrlBuilder extends AbstractUrlBuilder
                 }
             }
             // Handle attributes with data addresses
-            if ($attr->isWritable() && $json_attr = $this->buildDataAddressForAttribute($attr, $operation)) {
+            if ($attr->isWritable() 
+            	&& $this->isPartOfBody($qpart)
+            	&& $json_attr = $this->buildDataAddressForAttribute($attr, $operation)) {
                 foreach ($qpart->getValues() as $row => $val) {
                     if (! $json_objects[$row]) {
                         $json_objects[$row] = new \stdClass();
