@@ -376,7 +376,7 @@ class JsonUrlBuilder extends AbstractUrlBuilder
      * @param string $path
      * @return mixed
      */
-    protected function getValueFromRowViaXPath(QueryPartAttribute $qpart, array $row, string $path) : mixed
+    protected function getValueFromRowViaXPath(QueryPartAttribute $qpart, array $row, string $path)
     {
         $val = ArrayDataType::filterXPath($row, $path);
         
