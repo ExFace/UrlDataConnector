@@ -84,8 +84,21 @@ class MetamodelUriConnector extends AbstractUrlConnector
             	$ds->dataRead();
                 $bodyCol->setValue(0, $request->getBody()->__toString());
                 $ds->dataUpdate(false);
-                $response = new Response(201, []);
+                $response = new Response(204, []);
                 break;
+            case 'MERGE':
+            	$ds->getColumns()->addFromSystemAttributes();
+            	$ds->dataRead();
+            	if ($bodyCol->getValue(0) !== null){
+            		$newBody = array_merge(json_decode($bodyCol->getValue(0), true), json_decode($request->getBody(), true));
+	            	$bodyCol->setValue(0, json_encode($newBody));  
+            	} else {            		
+            		$bodyCol->setValue(0, $request->getBody()->__toString());            		
+            	}
+            	
+            	$ds->dataUpdate(false);
+            	$response = new Response(204, []);
+            	break;
             case 'DELETE':
             	$ds->getColumns()->addFromSystemAttributes();
             	$ds->dataRead();
