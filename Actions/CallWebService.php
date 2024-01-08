@@ -67,7 +67,7 @@ use exface\Core\Exceptions\Actions\ActionRuntimeError;
  * 
  * Complex request bodies may require both: placeholders and parameters with the same name.
  * 
- * ## Action result
+ * ## Success messages and action results
  * 
  * The result of `CallWebservice` consists of a messsage and a data sheet. The data sheet is based
  * on the actions object and will be empty by default. However, more specialized actions like
