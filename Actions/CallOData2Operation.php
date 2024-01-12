@@ -11,7 +11,26 @@ use exface\Core\Exceptions\Actions\ActionConfigurationError;
 /**
  * Calls an OData service operation (FunctionImport).
  * 
+ * ## Nicer success and error messages
  * 
+ * By default, OData operation success and error messages are more or less the resulting
+ * response body. Success messages depend on the specific operation implementation and
+ * error messages vary depending on the OData service architecture.
+ * 
+ * It is easy to extrackt specific parts of the responses via regular expressions. For
+ * example, to extract the error message from SAP OData responses add the following line 
+ * to the action configuration:
+ * 
+ * ```
+ *  "error_message_pattern": "/\"message\"\\s?:\\s?\"(?<message>[^\"]*)\"/"
+ *  
+ * ```
+ * 
+ * If you have multiple actions in the same data source, you can also place the regular 
+ * expression in the `error_text_pattern` of the connection configuration instead of configuring
+ * each action separately.
+ * 
+ * Success messages can be handled similarly using `result_message_pattern`.
  * 
  * @author Andrej Kabachnik
  *
