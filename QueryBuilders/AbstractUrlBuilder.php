@@ -583,6 +583,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
             $params = $this->addParameterToUrl($params, $this->buildUrlParamsForAggregations($this->getAggregations()));
         }
         
+        $endpoint = trim($endpoint);
         // Replace placeholders in endpoint
         $endpoint = $this->replacePlaceholdersInUrl($endpoint);
         
@@ -1421,7 +1422,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
                 $custom = $object->getDataAddressProperty(static::DAP_DELETE_REQUEST_DATA_ADDRESS);
                 break;
         }
-        return $custom ? $custom : $object->getDataAddress();
+        return trim($custom ? $custom : $object->getDataAddress());
     }
     
     /**
