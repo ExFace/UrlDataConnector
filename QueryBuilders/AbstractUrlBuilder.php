@@ -874,7 +874,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
      * @param string $url_string            
      * @return string|boolean
      */
-    protected function replacePlaceholdersInUrl($url_string, bool $strict = true, QueryPartFilterGroup $filterGroup = null)
+    protected function replacePlaceholdersInUrl($url_string, bool $strict = true, QueryPartFilterGroup $filterGroup = null) : string
     {
         $filterGroup = $filterGroup ?? $this->getFilters();
         foreach (StringDataType::findPlaceholders($url_string) as $ph) {
@@ -892,7 +892,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
                 } 
             } 
             
-            if ($foundPlaceholder === null) {
+            if ($foundPlaceholder === false) {
                 foreach ($this->getFilters()->getFilters() as $qpart) {
                     if ($qpart->isCompound() && $qpart->getAttribute() instanceof CompoundAttributeInterface) {
                         $urlOrFalse= $this->replacePlaceholdersInUrl($url_string, false, $qpart->getCompoundFilterGroup());    
