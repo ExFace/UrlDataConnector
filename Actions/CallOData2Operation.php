@@ -64,7 +64,10 @@ class CallOData2Operation extends CallWebService
             // Now add the parameter with the correct data
             $url .= (strpos($url, '?') === false ? '?' : '') . "&{$paramName}='" . json_encode($data->getRows()) . "'";
         }
-        return $url . (strpos($url, '?') === false ? '?' : '') . '&$format=json';
+        if ($this->getMethod() === 'GET') {
+            $url .= (strpos($url, '?') === false ? '?' : '') . '&$format=json';
+        } 
+        return $url;
     }
     
     /**

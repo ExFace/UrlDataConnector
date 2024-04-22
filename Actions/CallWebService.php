@@ -31,7 +31,6 @@ use exface\Core\Templates\BracketHashStringTemplateRenderer;
 use exface\Core\Templates\Placeholders\ConfigPlaceholders;
 use exface\Core\Templates\Placeholders\TranslationPlaceholders;
 use exface\Core\Templates\Placeholders\DataRowPlaceholders;
-use exface\Core\Templates\Placeholders\FormulaPlaceholders;
 use exface\Core\Templates\Placeholders\PlaceholderGroup;
 use exface\Core\Templates\Placeholders\DataSheetPlaceholder;
 use exface\Core\CommonLogic\Model\Expression;
@@ -1239,7 +1238,7 @@ class CallWebService extends AbstractAction implements iCallService
      *
      * @uxon-property body_data_placeholders
      * @uxon-type \exface\Core\Templates\Placeholders\DataSheetPlaceholder[]
-     * @uxon-template {"": {"row_template": "", "data_sheet": {"object_alias": "", "columns": [{"attribute_alias": ""}], "filters": {"operator": "AND", "conditions": [{"expression": "", "comparator": "", "value": ""}]}}}}
+     * @uxon-template {"": {"row_template": "", "data_sheet": {"object_alias": "", "filters": {"operator": "AND", "conditions": [{"expression": "", "comparator": "", "value": ""}]}}}}
      *
      * @param UxonObject $value
      * @return CallWebService
