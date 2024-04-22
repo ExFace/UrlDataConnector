@@ -26,6 +26,17 @@ use exface\Core\CommonLogic\Constants\Icons;
 use exface\UrlDataConnector\DataConnectors\HttpConnector;
 use exface\Core\CommonLogic\Debugger\LogBooks\ActionLogBook;
 use exface\Core\Exceptions\Actions\ActionRuntimeError;
+use exface\Core\Templates\Placeholders\ArrayPlaceholders;
+use exface\Core\Templates\BracketHashStringTemplateRenderer;
+use exface\Core\Templates\Placeholders\ConfigPlaceholders;
+use exface\Core\Templates\Placeholders\TranslationPlaceholders;
+use exface\Core\Templates\Placeholders\DataRowPlaceholders;
+use exface\Core\Templates\Placeholders\FormulaPlaceholders;
+use exface\Core\Templates\Placeholders\PlaceholderGroup;
+use exface\Core\Templates\Placeholders\DataSheetPlaceholder;
+use exface\Core\CommonLogic\Model\Expression;
+use exface\Core\Factories\FormulaFactory;
+use exface\Core\Factories\ExpressionFactory;
 
 /**
  * Calls a web service using parameters to fill placeholders in the URL and body of the HTTP request.
@@ -65,7 +76,33 @@ use exface\Core\Exceptions\Actions\ActionRuntimeError;
  * 
  * You may say, placeholders are a short and explicit way to define parameters.
  * 
- * Complex request bodies may require both: placeholders and parameters with the same name.
+ * ### Supported placeholder types:
+ * 
+ * - `[#SOME_ATTRIBUTE#]` - automatically creates a parameter for the attribute or a column in the input data
+ * - `[#~input:SOME_ATTRIBUTE#]` - same as above, but in a more explicit notation
+ * - `[#~input:=Concat(SOME_ATTRIBUTE, ',', OTHER_ATTRIBUTE#]` - the `~input:` prefix also allows formulas!
+ * In this case, the attributes required for the formula will become parameters of the action.
+ * - `[#~config:app_alias:config_key#]` - will be replaced by the value of the `config_key` in the given app.
+ * These placeholders will not be converted to parameters as their values do not depend on the input data.
+ * - `[#~translate:app_alias:translation_key#]` - will be replaced by the translation of the `translation_key` 
+ * from the given app. These placeholders will not be converted to parameters as their values do not depend on 
+ * the input data.
+ * 
+ * ### Nested data placeholders
+ * 
+ * Using `body_data_placeholders` you can even define your own placeholders, that will be filled by
+ * reading data related to the input - similarly as in printing actions. This way, you can build complex
+ * nested bodies.
+ * 
+ * ### Parameters or placeholders?
+ * 
+ * Parameters and placeholders ofter are alternatives. You may define a web service call using a URL
+ * or body template with placeholders or just define parameters and let the action build the URL or
+ * body automatically.
+ * 
+ * You can even combine both approaches: placeholders and parameters with the same name - using the
+ * parameter to enforce certain data type and other things, and the placeholder to explicitly place
+ * the parameter in a body template.
  * 
  * ## Success messages and action results
  * 
@@ -188,6 +225,63 @@ use exface\Core\Exceptions\Actions\ActionRuntimeError;
  * the placeholder names in the template match parameter names. However, placeholders, that are not in the 
  * `parameters` list will be ignored here because the action cannot know where to put the in the template.
  * 
+ * ### POST-request with a complex body with nested data
+ * 
+ * This action will send a JSON POST request with the basic structure of a meta object: the
+ * objects name and full alias and a list of attributes.
+ * 
+ * ```
+ *  {
+ *     "alias": "exface.UrlDataConnector.CallWebService",
+ *     "object_alias": "exface.Core.OBJECT",
+ *     "url": "http://localhost/test",
+ *     "method": "POST",
+ *     "data_source_alias": "exface.UrlDataConnector.REMOTE_JSON",
+ *     "body": "{\n  \"name\" : \"[#~input:NAME#]\",\n  \"alias\" : \"[#~input:=Concat(APP__ALIAS, '.', ALIAS)#]\"\n[#attributes#]}",
+ *     "body_data_placeholders": {
+ *       "attributes": {
+ *         "row_template": "    {\n      \"alias\" : \"[#attributes:ALIAS#]\",\n      \"name\" : \"[#attributes:NAME#]\"}",
+ *         "row_delimiter": ",",
+ *         "outer_template": ",\"attributes\": [ [#~rows#] ]",
+ *         "data_sheet": {
+ *           "object_alias": "exface.Core.ATTRIBUTE",
+ *           "filters": {
+ *             "operator": "AND",
+ *             "conditions": [
+ *               {
+ *                 "expression": "OBJECT",
+ *                "comparator": "==",
+ *                 "value": "[#~input:UID#]"
+ *               }
+ *             ]
+ *           }
+ *         }
+ *       }
+ *     }
+ *   }
+ *   
+ * ```
+ * 
+ * Find the result for the object `exface.Core.MESSAGE` below. Note, if there are
+ * no attributes, the `attributes` property will be removed completely!
+ * 
+ * ```
+ *  {
+ *      "name": "Message",
+ *      "alias": "exface.Core.MESSAGE"
+ *      ,"attributes": [
+ *          {
+ *              "name": "Docs path",
+ *              "alias": "DOCS"
+ *          },{
+ *              ...
+ *          }
+ *      ]
+ *  
+ *  }
+ *  
+ * ```
+ * 
  * ### POST-request with parameters and a generated form data body
  * 
  * An alternative to the use of `body` templates is to have the body generated from parameters. This only
@@ -275,6 +369,12 @@ class CallWebService extends AbstractAction implements iCallService
      * @var string|NULL
      */
     private $body = null;
+    
+    /**
+     * 
+     * @var UxonObject|NULL
+     */
+    private $dataPlaceholders = null;
     
     /**
      * @var string|DataSourceInterface|NULL
@@ -410,33 +510,71 @@ class CallWebService extends AbstractAction implements iCallService
     protected function buildBody(DataSheetInterface $data, int $rowNr, string $method) : string
     {
         $body = $this->getBody();
+        
         if ($body === null) {
             if ($this->getDefaultParameterGroup($method) === self::PARAMETER_GROUP_BODY) {
                 return $this->buildBodyFromParameters($data, $rowNr, $method);
             } else {
                 return '';
             }
+        } else {
+            return $this->buildBodyFromTemplate($body, $data, $rowNr, $method);
         }
+    }
+    
+    /**
+     * 
+     * @param string $template
+     * @param DataSheetInterface $data
+     * @param int $rowNr
+     * @param string $method
+     * @return string
+     */
+    protected function buildBodyFromTemplate(string $template, DataSheetInterface $data, int $rowNr, string $method) : string
+    {
+        $rowRenderer = new BracketHashStringTemplateRenderer($this->getWorkbench());
+        $rowRenderer->addPlaceholder(new ConfigPlaceholders($this->getWorkbench(), '~config:'));
+        $rowRenderer->addPlaceholder(new TranslationPlaceholders($this->getWorkbench(), '~translate:'));
         
-        $placeholders = StringDataType::findPlaceholders($body);
-        if (empty($placeholders) === true) {
-            return $body;
-        }
-        
-        $requiredParams = [];
-        foreach ($placeholders as $ph) {
-            $requiredParams[] = $this->getParameter($ph);
-        }
-        
-        $phValues = [];
-        foreach ($requiredParams as $param) {
+        // Add a placeholder renderer for all service parameters related to the body
+        $params = $this->getParameters(self::PARAMETER_GROUP_BODY);
+        foreach ($params as $param) {
             $name = $param->getName();
             $val = $data->getCellValue($name, $rowNr);
             $val = $this->prepareParamValue($param, $val) ?? '';
-            $phValues[$name] = $val;
+            $paramValues[$name] = $val;
+        }
+        $rowRenderer->addPlaceholder(new ArrayPlaceholders($paramValues));
+        
+        // Add resolvers for input data, that is not described by service parameters
+        $rowRenderer->addPlaceholder(new DataRowPlaceholders($data, $rowNr, '~input:'));
+            
+        // Add resolvers for body_data_placeholders
+        $dataPhsUxon = $this->getBodyDataPlaceholdersUxon();
+        if ($dataPhsUxon !== null) {
+            // Prepare a renderer for the body_data_placeholders config
+            $dataTplRenderer = new BracketHashStringTemplateRenderer($this->getWorkbench());
+            $dataTplRenderer->addPlaceholder(
+                (new DataRowPlaceholders($data, $rowNr, '~input:'))
+                ->setFormatValues(false)
+                ->setSanitizeAsUxon(true)
+            );
+            
+            // Create group-resolver with resolvers for every data_placeholder and use
+            // it as the default resolver for the input row renderer
+            $dataPhsResolverGroup = new PlaceholderGroup();
+            $dataPhsBaseRenderer = $rowRenderer->copy();
+            foreach ($dataPhsUxon->getPropertiesAll() as $ph => $phConfig) {
+                // Add a resolver for the data-placeholder: e.g. `[#ChildrenData#]` for the entire child sub-template
+                // and `[#ChildrenData:ATTR1#]` to address child-data values inside that sub-template
+                $dataPhsResolverGroup->addPlaceholderResolver(new DataSheetPlaceholder($ph, $phConfig, $dataTplRenderer, $dataPhsBaseRenderer));
+            }
+            $rowRenderer->setDefaultPlaceholderResolver($dataPhsResolverGroup);
         }
         
-        return StringDataType::replacePlaceholders($body, $phValues);
+        // Render the body
+        $renderedBody = $rowRenderer->render($template);
+        return $renderedBody;
     }
     
     /**
@@ -697,6 +835,7 @@ class CallWebService extends AbstractAction implements iCallService
      */
     protected function getDataWithParams(DataSheetInterface $data, array $parameters, ActionLogBook $logbook) : DataSheetInterface
     {
+        // TODO #DataCollector
         foreach ($parameters as $param) {
             if (! $data->getColumns()->get($param->getName())) {
                 if ($data->getMetaObject()->hasAttribute($param->getName()) === true) {
@@ -747,22 +886,100 @@ class CallWebService extends AbstractAction implements iCallService
     {
         if ($this->parametersGeneratedFromPlaceholders === false) {
             $this->parametersGeneratedFromPlaceholders = true;
-            $bodyPhs = StringDataType::findPlaceholders($this->getBody());
-            $urlPhs = StringDataType::findPlaceholders($this->getUrl());
-            $phs = array_merge($urlPhs, $bodyPhs);
-            foreach ($phs as $ph) {
-                try {
-                    $this->getParameter($ph);
-                } catch (ActionInputMissingError $e) {
-                    $this->parameters[] = new ServiceParameter($this, new UxonObject([
-                        "name" => $ph,
-                        "required" => true, 
-                        "group" => in_array($ph, $urlPhs) ? self::PARAMETER_GROUP_URL : self::PARAMETER_GROUP_BODY 
-                    ]));
-                }
+            $params = [];
+            if (null !== $tpl = $this->getBody()) {
+                $params = $this->findParametersInBody($tpl);
             }
+            if (null !== $tpl = $this->getUrl()) {
+                $params = array_merge($params, $this->findParametersInUrl($tpl));
+            }
+            $this->parameters = $params;
         }
         return $this->parameters;
+    }
+    
+    /**
+     * 
+     * @param string $urlTpl
+     * @return ServiceParameterInterface[]
+     */
+    protected function findParametersInUrl(string $urlTpl) : array
+    {
+        $params = [];
+        $phs = StringDataType::findPlaceholders($urlTpl);
+        foreach ($phs as $ph) {
+            try {
+                $this->getParameter($ph);
+            } catch (ActionInputMissingError $e) {
+                $params[] = new ServiceParameter($this, new UxonObject([
+                    "name" => $ph,
+                    "required" => true,
+                    "group" => self::PARAMETER_GROUP_URL
+                ]));
+            }
+        }
+        return $params;
+    }
+    
+    /**
+     * 
+     * @param string $bodyTpl
+     * @return ServiceParameterInterface[]
+     */
+    protected function findParametersInBody(string $bodyTpl) : array
+    {
+        $params = [];
+        $bodyPhs = StringDataType::findPlaceholders($bodyTpl);
+        $bodyPhsFiltered = [];
+        $bodyDataPhsUxon = $this->getBodyDataPlaceholdersUxon();
+        if ($bodyDataPhsUxon !== null) {
+            $bodyDataPhs = $bodyDataPhsUxon->getPropertyNames();
+        }
+        foreach ($bodyPhs as $ph) {
+            // Remove data placeholders as they are not parameters
+            foreach ($bodyDataPhs as $dataPh) {
+                if ($ph === $dataPh || StringDataType::startsWith($ph, $dataPh . ':')) {
+                    continue 2;
+                }
+            }
+            // Treat attributes from formula placehlders as parameters
+            if (Expression::detectFormula($ph)) {
+                $formula = FormulaFactory::createFromString($this->getWorkbench(), $ph);
+                $bodyPhsFiltered = array_merge($bodyPhsFiltered, $formula->getRequiredAttributes(true));
+                continue;
+            }
+            // Keep simple body placehodlers
+            if (mb_substr($ph, 0, 1) !== '~') {
+                $bodyPhsFiltered[] = $ph;
+                continue;
+            }
+            // Keep input body placeholders
+            if (StringDataType::startsWith($ph, '~input:') === true) {
+                $param = StringDataType::substringAfter($ph, '~input:');
+                $paramExpr = ExpressionFactory::createFromString($this->getWorkbench(), $param);
+                foreach ($paramExpr->getRequiredAttributes() as $paramAttr) {
+                    $bodyPhsFiltered[] = $paramAttr;
+                }
+                continue;
+            }
+            // Remove all other types of body placeholders - they are not parameters
+            // and will be handled by buildBodyFromTemplate()
+        }
+        $bodyPhsFiltered = array_unique($bodyPhsFiltered);
+        
+        foreach ($bodyPhsFiltered as $ph) {
+            try {
+                $this->getParameter($ph);
+            } catch (ActionInputMissingError $e) {
+                $params[] = new ServiceParameter($this, new UxonObject([
+                    "name" => $ph,
+                    "required" => true,
+                    "group" => self::PARAMETER_GROUP_BODY
+                ]));
+            }
+        }
+        
+        return $params;
     }
     
     /**
@@ -1005,6 +1222,31 @@ class CallWebService extends AbstractAction implements iCallService
     protected function setSeparateRequestsForEachRow(bool $value) : CallWebService
     {
         $this->separateRequestsPerRow = $value;
+        return $this;
+    }
+    
+    /**
+     * 
+     * @return UxonObject|NULL
+     */
+    protected function getBodyDataPlaceholdersUxon() : ?UxonObject
+    {
+        return $this->dataPlaceholders;
+    }
+    
+    /**
+     * Additional data placeholders to be provided to the body template
+     *
+     * @uxon-property body_data_placeholders
+     * @uxon-type \exface\Core\Templates\Placeholders\DataSheetPlaceholder[]
+     * @uxon-template {"": {"row_template": "", "data_sheet": {"object_alias": "", "columns": [{"attribute_alias": ""}], "filters": {"operator": "AND", "conditions": [{"expression": "", "comparator": "", "value": ""}]}}}}
+     *
+     * @param UxonObject $value
+     * @return CallWebService
+     */
+    public function setBodyDataPlaceholders(UxonObject $value) : CallWebService
+    {
+        $this->dataPlaceholders = $value;
         return $this;
     }
 }

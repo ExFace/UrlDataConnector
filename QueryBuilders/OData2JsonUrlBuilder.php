@@ -469,11 +469,11 @@ class OData2JsonUrlBuilder extends JsonUrlBuilder
      * See https://www.odata.org/documentation/odata-version-2-0/overview/ chapter 6.
      * 
      * @param string|null $parsedValue
-     * @param DataTypeInterface $dataType
-     * @param string $odataType
+     * @param DataTypeInterface|NULL $dataType
+     * @param string|NULL $odataType
      * @return string
      */
-    public static function buildUrlFilterODataValue($parsedValue, DataTypeInterface $dataType, string $odataType = null) : string
+    public static function buildUrlFilterODataValue($parsedValue, DataTypeInterface $dataType = null, string $odataType = null) : string
     {
         switch (true) {
             // NULL
@@ -531,11 +531,11 @@ class OData2JsonUrlBuilder extends JsonUrlBuilder
      * See https://www.odata.org/documentation/odata-version-2-0/json-format/ chapter 4.
      * 
      * @param string|null $parsedValue
-     * @param DataTypeInterface $dataType
-     * @param string $odataType
+     * @param DataTypeInterface|NULL $dataType
+     * @param string|NULL $odataType
      * @return mixed
      */
-    public static function buildRequestBodyODataValue($parsedValue, DataTypeInterface $dataType, string $odataType = null)
+    public static function buildRequestBodyODataValue($parsedValue, DataTypeInterface $dataType = null, string $odataType = null)
     {
         switch (true) {
             // NULL
