@@ -380,18 +380,21 @@ class JsonUrlBuilder extends AbstractUrlBuilder
     {
         $val = ArrayDataType::filterXPath($row, $path);
         
-        // Check if the value is still an array and an aggregator must be applied
+        // Check if the value is still an array and an aggregator exists otherwise transform content into json string
         if (is_array($val)) {
-            $aggr = $qpart->getAggregator();
-            if ($aggr === null) {
-                if ($attr = $qpart->getAttribute()) {
-                    if ($defFunc = $attr->getDefaultAggregateFunction()) {
-                        $aggr = new Aggregator($this->getWorkbench(), $defFunc);
-                    }
-                }
+            switch (true){
+                case ($aggregator = $qpart->getAggregator()) !== null:
+                    $val = ArrayDataType::aggregateValues($val, $aggregator);
+                    break;
+                case $defFunc = ($qpart->getAttribute())->getDefaultAggregateFunction() !== null:
+                    $val = ArrayDataType::aggregateValues($val, new Aggregator($this->getWorkbench(), $defFunc));
+                    break;
+                default:
+                    $val = trim(json_encode($val), '[]');
+                    break;
             }
-            $val = ArrayDataType::aggregateValues($val, $aggr);
         }
+
         return $val;
     }
 
