@@ -676,6 +676,7 @@ class CallWebService extends AbstractAction implements iCallService
     {
         $input = $this->getInputDataSheet($task);
         $logbook = $this->getLogBook($task);
+        $logbook->setIndentActive(1);
         
         $resultData = DataSheetFactory::createFromObject($this->getResultObject());
         $resultData->setAutoCount(false);
@@ -690,13 +691,17 @@ class CallWebService extends AbstractAction implements iCallService
         
         // Make sure all required parameters are present in the data
         $params = $this->getParameters();
-        $logbook->addLine('Found ' . count($params) . ' service parameters. Checking if input data has all required parameters', 1, 0);
+        $logbook->addLine('Found ' . count($params) . ' service parameters. Checking if input data has all required parameters');
+        
+        $logbook->addIndent(+1);
         $input = $this->getDataWithParams($input, $params, $logbook);  
+        $logbook->addIndent(-1);
         
         $httpConnection = $this->getDataConnection();
 
         // Call the webservice for every row in the input data.
-        $logbook->addLine('Firing HTTP requests for ' . $rowCnt . ' input rows', 1);
+        $logbook->addLine('Firing HTTP requests for ' . $rowCnt . ' input rows');
+        $logbook->addIndent(+1);
         for ($i = 0; $i < $rowCnt; $i++) {
             $method = $this->buildMethod($input, $i);
             $request = new Request($method, $this->buildUrl($input, $i, $method), $this->buildHeaders(), $this->buildBody($input, $i, $method));
@@ -709,8 +714,9 @@ class CallWebService extends AbstractAction implements iCallService
             }
             $resultCntPrev = $resultData->countRows();
             $resultData = $this->parseResponse($response, $resultData);
-            $logbook->addLine('Request ' . ($i+1) . ' returned ' . ($resultData->countRows() - $resultCntPrev) . ' data rows', 2);
+            $logbook->addLine('Request ' . ($i+1) . ' returned ' . ($resultData->countRows() - $resultCntPrev) . ' data rows');
         }
+        $logbook->addIndent(-1);
         $resultData->setCounterForRowsInDataSource($resultData->countRows());
         
         // If the input and the result are based on the same meta object, we can (and should!)
@@ -718,7 +724,7 @@ class CallWebService extends AbstractAction implements iCallService
         // merely means, we need to fill the sheet with data, which, of course, should adhere
         // to its settings.
         if ($input->getMetaObject()->is($resultData->getMetaObject())) {
-            $logbook->addLine('Filters and sorters will be applied to result data', 1);
+            $logbook->addLine('Filters and sorters will be applied to result data');
             if ($input->getFilters()->isEmpty(true) === false) {
                 $resultData = $resultData->extract($input->getFilters());
             }
@@ -726,7 +732,7 @@ class CallWebService extends AbstractAction implements iCallService
                 $resultData->sort($input->getSorters());
             }
         } else {
-            $logbook->addLine('Filters and sorters will NOT be applied to result data because input and result are based on different meta objects: ' . $input->getMetaObject()->__toString() . ' vs ' . $resultData->getMetaObject()->__toString(), 1);
+            $logbook->addLine('Filters and sorters will NOT be applied to result data because input and result are based on different meta objects: ' . $input->getMetaObject()->__toString() . ' vs ' . $resultData->getMetaObject()->__toString());
         }
         
         if ($this->getResultMessageText() && $this->getResultMessagePattern()) {
@@ -839,21 +845,36 @@ class CallWebService extends AbstractAction implements iCallService
             if (! $data->getColumns()->get($param->getName())) {
                 if ($data->getMetaObject()->hasAttribute($param->getName()) === true) {
                     if ($data->hasUidColumn(true) === true) {
-                        $logbook->addLine('Loading "' . $param->getName() . '" additionally', 2);
+                        $logbook->addLine('Loading ' . ($param->isRequired() ? 'required' : 'optional') . ' `' . $param->getName() . '` additionally');
                         $attr = $data->getMetaObject()->getAttribute($param->getName());
                         $data->getColumns()->addFromAttribute($attr);
                     } elseif ($param->isRequired()) {
-                        $logbook->addLine('Missing "' . $param->getName() . '", but cannot load it because there are no UIDs', 2);
-                    }
+                        $logbook->addLine('Missing `' . $param->getName() . '`, but cannot load it because there are no UIDs');
+                    } 
                 } elseif ($param->isRequired()) {
-                    $logbook->addLine('Missing "' . $param->getName() . '", but it is not an attribute of the object ' . $data->getMetaObject()->__toString(), 2);
+                    $logbook->addLine('Missing `' . $param->getName() . '`, but it is not an attribute of the object ' . $data->getMetaObject()->__toString());
                 }
             }
         }
-        if ($data->isFresh() === false && $data->hasUidColumn(true)) {
-            $logbook->addLine('Loading missing data', 2);
-            $data->getFilters()->addConditionFromColumnValues($data->getUidColumn());
-            $data->dataRead();
+        if ($data->isFresh() === false) {
+            switch (true) {
+                case $data->getMetaObject()->isReadable() === false:
+                    $logbook->addLine('Cannot load missing data because the input object ' . $data->getMetaObject()->__toString() . ' is marked as not readable!');
+                    break;
+                case $data->hasUidColumn(true) === false:
+                    $logbook->addLine('Cannot load missing data because the input data does not have a UID column!');
+                    break;
+                default:
+                    $logbook->addLine('Loading missing data', 2);
+                    try {
+                        $data->getFilters()->addConditionFromColumnValues($data->getUidColumn());
+                        $data->dataRead();
+                    } catch (\Throwable $e) {
+                        throw new ActionInputMissingError($this, 'Cannot read missing input data for action ' . $this->getAliasWithNamespace() . '!');
+                    }
+            } 
+        } else {
+            $logbook->addLine('No need to load missing data - everything is fine');
         }
         return $data;
     }
