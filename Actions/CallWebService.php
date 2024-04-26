@@ -892,7 +892,9 @@ class CallWebService extends AbstractAction implements iCallService
             if (null !== $tpl = $this->getUrl()) {
                 $params = array_merge($params, $this->findParametersInUrl($tpl));
             }
-            $this->parameters = $params;
+            // Make sure to keep explicitly defined parameters as-is and just add
+            // those placeholders, that were not put into the parameters list manually.
+            $this->parameters = array_merge($params, $this->parameters);
         }
         return $this->parameters;
     }
