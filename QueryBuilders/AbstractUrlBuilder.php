@@ -583,6 +583,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
             $params = $this->addParameterToUrl($params, $this->buildUrlParamsForAggregations($this->getAggregations()));
         }
         
+        $endpoint = trim($endpoint);
         // Replace placeholders in endpoint
         $endpoint = $this->replacePlaceholdersInUrl($endpoint);
         
@@ -873,7 +874,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
      * @param string $url_string            
      * @return string|boolean
      */
-    protected function replacePlaceholdersInUrl($url_string, bool $strict = true, QueryPartFilterGroup $filterGroup = null)
+    protected function replacePlaceholdersInUrl($url_string, bool $strict = true, QueryPartFilterGroup $filterGroup = null) : string
     {
         $filterGroup = $filterGroup ?? $this->getFilters();
         foreach (StringDataType::findPlaceholders($url_string) as $ph) {
@@ -891,7 +892,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
                 } 
             } 
             
-            if ($foundPlaceholder === null) {
+            if ($foundPlaceholder === false) {
                 foreach ($this->getFilters()->getFilters() as $qpart) {
                     if ($qpart->isCompound() && $qpart->getAttribute() instanceof CompoundAttributeInterface) {
                         $urlOrFalse= $this->replacePlaceholdersInUrl($url_string, false, $qpart->getCompoundFilterGroup());    
@@ -1421,7 +1422,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
                 $custom = $object->getDataAddressProperty(static::DAP_DELETE_REQUEST_DATA_ADDRESS);
                 break;
         }
-        return $custom ? $custom : $object->getDataAddress();
+        return trim($custom ? $custom : $object->getDataAddress());
     }
     
     /**
