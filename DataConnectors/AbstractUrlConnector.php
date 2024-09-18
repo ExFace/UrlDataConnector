@@ -1,7 +1,8 @@
 <?php
 namespace exface\UrlDataConnector\DataConnectors;
 
-use exface\Core\CommonLogic\AbstractDataConnectorWithoutTransactions;
+use exface\Core\CommonLogic\AbstractDataConnector;
+use exface\Core\DataConnectors\Traits\IDoNotSupportTransactionsTrait;
 use exface\UrlDataConnector\Interfaces\UrlConnectionInterface;
 
 /**
@@ -10,8 +11,9 @@ use exface\UrlDataConnector\Interfaces\UrlConnectionInterface;
  * @author Andrej Kabachnik
  *        
  */
-abstract class AbstractUrlConnector extends AbstractDataConnectorWithoutTransactions implements UrlConnectionInterface
+abstract class AbstractUrlConnector extends AbstractDataConnector implements UrlConnectionInterface
 {
+    use IDoNotSupportTransactionsTrait;
 
     private $url = null;
 
