@@ -2,7 +2,7 @@
 namespace exface\UrlDataConnector\DataConnectors;
 
 use GuzzleHttp\Psr7\Response;
-use GuzzleHttp\Psr7;
+use GuzzleHttp\Psr7\Utils;
 use exface\UrlDataConnector\Psr7DataQuery;
 use exface\Core\Interfaces\DataSources\DataQueryInterface;
 use exface\Core\Exceptions\DataSources\DataConnectionQueryTypeError;
@@ -59,7 +59,7 @@ class FileUriConnector extends AbstractUrlConnector
             throw new DataQueryFailedError($query, 'File not found: "' . $file_path . '"!');
         }
         
-        $query->setResponse(new Response(200, array(), Psr7\stream_for(fopen($file_path, 'r'))));
+        $query->setResponse(new Response(200, array(), Utils::streamFor(fopen($file_path, 'r'))));
         return $query;
     }
     
