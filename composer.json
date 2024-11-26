@@ -20,13 +20,13 @@
     },
     "require": {
         "exface/core": "^1.0",
-        "guzzlehttp/guzzle": "^6.2.2",
+        "guzzlehttp/guzzle": "^6||^7",
         "symfony/finder": "^4.0||^5.0",
         "symfony/css-selector": "^4.0||^5.0",
         "symfony/dom-crawler": "^4.0||^5.0",
         "symfony/cache": "^4.0||^5.0",
-        "psr/cache": "^1.0.1",
-        "kevinrob/guzzle-cache-middleware": "^2.0||^3.0"
+        "psr/cache": "^1||^2||^3",
+        "kevinrob/guzzle-cache-middleware": "^2||^3||^4||^5"
     },
     "suggest": {
         "ruflin/elastica": "Needed to use the ElasticSearchConnector"
