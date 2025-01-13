@@ -2,6 +2,11 @@
     "object_alias": "exface.Core.DATASRC",
     "columns": [
         {
+            "name": "_EXPORT_SUMMARY",
+            "hidden": true,
+            "attribute_alias": "LABEL"
+        },
+        {
             "name": "CREATED_ON",
             "attribute_alias": "CREATED_ON"
         },
@@ -56,6 +61,7 @@
     ],
     "rows": [
         {
+            "_EXPORT_SUMMARY": "Local JSON file",
             "CREATED_ON": "2016-07-18 21:48:43",
             "MODIFIED_ON": "2017-04-19 10:34:25",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -63,14 +69,15 @@
             "UID": "0x11e64d20a1fcb3079409c0f8dae36b4f",
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "DEFAULT_CONNECTION": "0x11e64d20396ae3349409c0f8dae36b4f",
-            "DEFAULT_QUERY_BUILDER": "exface\/UrlDataConnector\/QueryBuilders\/JsonUrlBuilder.php",
+            "DEFAULT_QUERY_BUILDER": "exface/UrlDataConnector/QueryBuilders/JsonUrlBuilder.php",
             "READABLE_FLAG": 1,
             "WRITABLE_FLAG": 1,
-            "BASE_OBJECT": "",
+            "BASE_OBJECT": null,
             "LABEL": "Local JSON file",
             "ALIAS": "LOCAL_JSON_FILE"
         },
         {
+            "_EXPORT_SUMMARY": "Remote HTML URL",
             "CREATED_ON": "2017-01-23 16:55:37",
             "MODIFIED_ON": "2017-04-19 10:35:52",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -78,14 +85,15 @@
             "UID": "0x11e6e18cc186d41fa3d9e4b318306b9a",
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "DEFAULT_CONNECTION": "0x11e6e18c3332185ba3d9e4b318306b9a",
-            "DEFAULT_QUERY_BUILDER": "exface\/UrlDataConnector\/QueryBuilders\/HtmlUrlBuilder.php",
+            "DEFAULT_QUERY_BUILDER": "exface/UrlDataConnector/QueryBuilders/HtmlUrlBuilder.php",
             "READABLE_FLAG": 1,
             "WRITABLE_FLAG": 1,
-            "BASE_OBJECT": "",
+            "BASE_OBJECT": null,
             "LABEL": "Remote HTML URL",
             "ALIAS": "REMOTE_HTML"
         },
         {
+            "_EXPORT_SUMMARY": "Remote JSON URL",
             "CREATED_ON": "2017-01-23 16:57:12",
             "MODIFIED_ON": "2017-04-19 10:36:22",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -93,14 +101,15 @@
             "UID": "0x11e6e18cfa500ab9a3d9e4b318306b9a",
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "DEFAULT_CONNECTION": "0x11e6e18c3332185ba3d9e4b318306b9a",
-            "DEFAULT_QUERY_BUILDER": "exface\/UrlDataConnector\/QueryBuilders\/JsonUrlBuilder.php",
+            "DEFAULT_QUERY_BUILDER": "exface/UrlDataConnector/QueryBuilders/JsonUrlBuilder.php",
             "READABLE_FLAG": 1,
             "WRITABLE_FLAG": 1,
-            "BASE_OBJECT": "",
+            "BASE_OBJECT": null,
             "LABEL": "Remote JSON URL",
             "ALIAS": "REMOTE_JSON"
         },
         {
+            "_EXPORT_SUMMARY": "Remote XML URL",
             "CREATED_ON": "2017-01-23 16:57:27",
             "MODIFIED_ON": "2017-04-19 10:36:44",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -108,14 +117,15 @@
             "UID": "0x11e6e18d0321319ea3d9e4b318306b9a",
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "DEFAULT_CONNECTION": "0x11e6e18c3332185ba3d9e4b318306b9a",
-            "DEFAULT_QUERY_BUILDER": "exface\/UrlDataConnector\/QueryBuilders\/XmlUrlBuilder.php",
+            "DEFAULT_QUERY_BUILDER": "exface/UrlDataConnector/QueryBuilders/XmlUrlBuilder.php",
             "READABLE_FLAG": 1,
             "WRITABLE_FLAG": 1,
-            "BASE_OBJECT": "",
+            "BASE_OBJECT": null,
             "LABEL": "Remote XML URL",
             "ALIAS": "REMOTE_XML"
         },
         {
+            "_EXPORT_SUMMARY": "Remote JSON URL (cached)",
             "CREATED_ON": "2017-02-13 17:21:55",
             "MODIFIED_ON": "2017-04-19 10:36:33",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -123,14 +133,15 @@
             "UID": "0x11e6f210eaeab1359aa50205857feb80",
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "DEFAULT_CONNECTION": "0x11e6f210a41e34f69aa50205857feb80",
-            "DEFAULT_QUERY_BUILDER": "exface\/UrlDataConnector\/QueryBuilders\/JsonUrlBuilder.php",
+            "DEFAULT_QUERY_BUILDER": "exface/UrlDataConnector/QueryBuilders/JsonUrlBuilder.php",
             "READABLE_FLAG": 1,
             "WRITABLE_FLAG": 1,
-            "BASE_OBJECT": "",
+            "BASE_OBJECT": null,
             "LABEL": "Remote JSON URL (cached)",
             "ALIAS": "REMOTE_JSON_CACHED"
         },
         {
+            "_EXPORT_SUMMARY": "Remote HTML URL (cached)",
             "CREATED_ON": "2017-02-28 15:58:30",
             "MODIFIED_ON": "2017-04-19 10:36:07",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -138,10 +149,10 @@
             "UID": "0x11e6fdceb4f3118f8bfae4b318306b9a",
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "DEFAULT_CONNECTION": "0x11e6f210a41e34f69aa50205857feb80",
-            "DEFAULT_QUERY_BUILDER": "exface\/UrlDataConnector\/QueryBuilders\/HtmlUrlBuilder.php",
+            "DEFAULT_QUERY_BUILDER": "exface/UrlDataConnector/QueryBuilders/HtmlUrlBuilder.php",
             "READABLE_FLAG": 1,
             "WRITABLE_FLAG": 1,
-            "BASE_OBJECT": "",
+            "BASE_OBJECT": null,
             "LABEL": "Remote HTML URL (cached)",
             "ALIAS": "REMOTE_HTML_CACHED"
         }
