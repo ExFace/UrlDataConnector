@@ -2,6 +2,11 @@
     "object_alias": "exface.Core.MESSAGE",
     "columns": [
         {
+            "name": "_EXPORT_SUMMARY",
+            "hidden": true,
+            "attribute_alias": "LABEL"
+        },
+        {
             "name": "CREATED_ON",
             "attribute_alias": "CREATED_ON"
         },
@@ -52,6 +57,7 @@
     ],
     "rows": [
         {
+            "_EXPORT_SUMMARY": "6T4RAVX Failed to create HTTP client",
             "CREATED_ON": "2016-12-20 07:55:40",
             "MODIFIED_ON": "2016-12-20 07:55:40",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -66,6 +72,7 @@
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "6UY4L3E Incorrect request to a webservice",
             "CREATED_ON": "2017-04-26 09:47:00",
             "MODIFIED_ON": "2017-08-22 15:22:58",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -80,6 +87,7 @@
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "6UY5F5D Authentication to a webservice failed",
             "CREATED_ON": "2017-04-26 10:51:55",
             "MODIFIED_ON": "2017-08-22 15:31:36",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -94,6 +102,7 @@
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "6UY86E7 Internal error in webservice",
             "CREATED_ON": "2017-04-26 14:26:17",
             "MODIFIED_ON": "2017-08-22 15:21:49",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -108,6 +117,7 @@
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "6UY88MN Unknown error during request to a webservice",
             "CREATED_ON": "2017-04-26 14:31:07",
             "MODIFIED_ON": "2017-08-22 15:19:47",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -122,6 +132,7 @@
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "6UY95WR No response from webserver",
             "CREATED_ON": "2017-04-26 15:43:00",
             "MODIFIED_ON": "2017-08-22 15:20:43",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -136,6 +147,7 @@
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "6V27IZ3 The webservice could not be contacted",
             "CREATED_ON": "2017-05-04 08:13:08",
             "MODIFIED_ON": "2017-08-22 15:21:23",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -150,6 +162,7 @@
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "73G87II Cannot convert oData 2.0 association to a relation in the metamodel",
             "CREATED_ON": "2018-12-12 11:12:52",
             "MODIFIED_ON": "2018-12-12 11:23:56",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -161,9 +174,10 @@
             "DESCRIPTION": "",
             "HINT": "Try to re-run the model builder for the objects at both ends of the association node",
             "TYPE": "ERROR",
-            "DOCS": "exface\/UrlDataConnector\/Docs\/OData\/The_metamodel_for_OData_2.0.md"
+            "DOCS": "exface/UrlDataConnector/Docs/OData/The_metamodel_for_OData_2.0.md"
         },
         {
+            "_EXPORT_SUMMARY": "75C7YOQ Missing parameter for remote function call",
             "CREATED_ON": "2019-04-23 15:30:16",
             "MODIFIED_ON": "2019-04-23 15:42:34",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -178,6 +192,7 @@
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "76G66CL Invalid GraphQL mutation configuration",
             "CREATED_ON": "2019-07-10 07:25:42",
             "MODIFIED_ON": "2019-07-10 07:25:42",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -186,12 +201,22 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "CODE": "76G66CL",
             "TITLE": "Invalid GraphQL mutation configuration",
-            "DESCRIPTION": "This error indicates, that a generic modifying action (create, update or delete) is performed upon an object from a GraphQL data source, but the configuration of that object does not include the mutation name for that action. \n\nThe GraphQL query builder needs to know, which mutations to perform for these generic actions. The corresponding mutation names must be defined in the meta object's data address properties to make these actions work:\n\n- graphql_create_mutation\n- graphql_update_mutation\n- graphql_delete_mutation",
+            "DESCRIPTION": [
+                "// Multiline text delimited by `\n`",
+                "This error indicates, that a generic modifying action (create, update or delete) is performed upon an object from a GraphQL data source, but the configuration of that object does not include the mutation name for that action. ",
+                "",
+                "The GraphQL query builder needs to know, which mutations to perform for these generic actions. The corresponding mutation names must be defined in the meta object's data address properties to make these actions work:",
+                "",
+                "- graphql_create_mutation",
+                "- graphql_update_mutation",
+                "- graphql_delete_mutation"
+            ],
             "HINT": "",
             "TYPE": "ERROR",
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "7EO5HDU Stored login data not valid anymore",
             "CREATED_ON": "2021-02-04 17:42:20",
             "MODIFIED_ON": "2021-02-04 17:42:20",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -200,12 +225,18 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "CODE": "7EO5HDU",
             "TITLE": "Stored login data not valid anymore",
-            "DESCRIPTION": "Some web services will block users if they fail to login multiple times in a row. To prevent this, HTTP data connectors remember the credentials that failed and ask the user to re-login. \n\nThis behavior can be explicitly turned on or off via `authentication_retry_after_fail` in the configuration of the data connection.",
+            "DESCRIPTION": [
+                "// Multiline text delimited by `\n`",
+                "Some web services will block users if they fail to login multiple times in a row. To prevent this, HTTP data connectors remember the credentials that failed and ask the user to re-login. ",
+                "",
+                "This behavior can be explicitly turned on or off via `authentication_retry_after_fail` in the configuration of the data connection."
+            ],
             "HINT": "Please log in again manually!",
             "TYPE": "ERROR",
             "DOCS": ""
         },
         {
+            "_EXPORT_SUMMARY": "7STUR1D Invalid metamodel URI",
             "CREATED_ON": "2023-10-23 15:27:05",
             "MODIFIED_ON": "2023-10-23 15:27:05",
             "CREATED_BY_USER": "0x31000000000000000000000000000000",
@@ -214,7 +245,16 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "CODE": "7STUR1D",
             "TITLE": "Invalid metamodel URI",
-            "DESCRIPTION": "This error occurs when URL query builders are used on data stored in other data sources, but the URL is not correctly formed. The expected URL format is `metamodel:\/\/my.APP.OBJECT\/<attribute_alias>\/<uid_value>`, where\n\n- `my.APP.OBJECT` is the fully qualified alias of the meta object to read or write\n- `<attribute_alias>` is the alias of the attribute, that is expected to contain the request body\n- `<uid_value>` is the UID of the target data row\n\nGET-requests will read data, while POST, PUT and PATCH will write data. DELETE will delete the entire row.",
+            "DESCRIPTION": [
+                "// Multiline text delimited by `\n`",
+                "This error occurs when URL query builders are used on data stored in other data sources, but the URL is not correctly formed. The expected URL format is `metamodel://my.APP.OBJECT/<attribute_alias>/<uid_value>`, where",
+                "",
+                "- `my.APP.OBJECT` is the fully qualified alias of the meta object to read or write",
+                "- `<attribute_alias>` is the alias of the attribute, that is expected to contain the request body",
+                "- `<uid_value>` is the UID of the target data row",
+                "",
+                "GET-requests will read data, while POST, PUT and PATCH will write data. DELETE will delete the entire row."
+            ],
             "HINT": "",
             "TYPE": "ERROR",
             "DOCS": ""
