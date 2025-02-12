@@ -1,8 +1,6 @@
 <?php
 namespace exface\UrlDataConnector\DataConnectors;
 
-use function GuzzleHttp\Psr7\_caseless_remove;
-use function GuzzleHttp\Psr7\modify_request;
 use exface\UrlDataConnector\ModelBuilders\GraphQLModelBuilder;
 use exface\UrlDataConnector\Psr7DataQuery;
 use exface\Core\Interfaces\DataSources\DataQueryInterface;
