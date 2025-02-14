@@ -9,13 +9,12 @@ use exface\Core\Exceptions\DataSources\DataConnectionFailedError;
 use GuzzleHttp\Psr7\Response;
 use exface\Core\CommonLogic\Filemanager;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Utils;
 use Kevinrob\GuzzleCache\CacheMiddleware;
 use Kevinrob\GuzzleCache\Storage\Psr6CacheStorage;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use GuzzleHttp\Exception\RequestException;
 use exface\UrlDataConnector\Exceptions\HttpConnectorRequestError;
-use function GuzzleHttp\Psr7\_caseless_remove;
-use function GuzzleHttp\Psr7\modify_request;
 use exface\UrlDataConnector\Interfaces\HttpConnectionInterface;
 use Psr\Http\Message\ResponseInterface;
 use exface\Core\DataTypes\StringDataType;
@@ -585,8 +584,8 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
     {
         $requestHeaders = $query->getRequest()->getHeaders();
         $clientHeaders = $this->getClient()->getConfig('headers');
-        $clientHeaders = _caseless_remove(array_keys($requestHeaders), $clientHeaders);
-        $query->setRequest(modify_request($query->getRequest(), ['set_headers'=> $clientHeaders]));
+        $clientHeaders = Utils::caselessRemove(array_keys($requestHeaders), $clientHeaders);
+        $query->setRequest(Utils::modifyRequest($query->getRequest(), ['set_headers'=> $clientHeaders]));
         return $query;
     }
 
