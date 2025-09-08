@@ -666,6 +666,25 @@ class CallWebService extends AbstractAction implements iCallService
         $this->body = $body;
         return $this;
     }
+
+    /**
+     * The body of the HTTP request as JSON object or array - [#paceholders#] are supported.
+     * 
+     * This is the same as `body`, but takes a JSON object or array as value instead of plain
+     * string. It is more convenient to use `body_json` for JSON requests than a plain `body`.
+     * 
+     * @uxon-property body_json
+     * @uxon-type object
+     * @uxon-template {"":""}
+     * 
+     * @param UxonObject $json
+     * @return $this
+     */
+    protected function setBodyJson(UxonObject $json) : CallWebService
+    {
+        $this->body = $json->toJson();
+        return $this;
+    }
     
     /**
      *
@@ -930,9 +949,7 @@ class CallWebService extends AbstractAction implements iCallService
         $params = [];
         $phs = StringDataType::findPlaceholders($urlTpl);
         foreach ($phs as $ph) {
-            try {
-                $this->getParameter($ph);
-            } catch (ActionInputMissingError $e) {
+            if (! $this->hasParameter($ph)) {
                 $params[] = new ServiceParameter($this, new UxonObject([
                     "name" => $ph,
                     "required" => true,
@@ -990,9 +1007,7 @@ class CallWebService extends AbstractAction implements iCallService
         $bodyPhsFiltered = array_unique($bodyPhsFiltered);
         
         foreach ($bodyPhsFiltered as $ph) {
-            try {
-                $this->getParameter($ph);
-            } catch (ActionInputMissingError $e) {
+            if (! $this->hasParameter($ph)) {
                 $params[] = new ServiceParameter($this, new UxonObject([
                     "name" => $ph,
                     "required" => true,
