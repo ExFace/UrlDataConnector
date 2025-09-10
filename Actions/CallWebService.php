@@ -11,6 +11,7 @@ use exface\Core\DataTypes\ArrayDataType;
 use exface\Core\DataTypes\MimeTypeDataType;
 use exface\Core\DataTypes\StringDataType;
 use exface\Core\Exceptions\Actions\ActionConfigurationError;
+use exface\Core\Exceptions\Actions\ActionInputError;
 use exface\Core\Exceptions\Actions\ActionInputMissingError;
 use exface\Core\Exceptions\Actions\ActionRuntimeError;
 use exface\Core\Factories\DataSheetFactory;
@@ -525,15 +526,18 @@ class CallWebService extends AbstractAction implements iCallService
     protected function buildBody(DataSheetInterface $data, int $rowNr, string $method) : string
     {
         $body = $this->getBody();
-        
-        if ($body === null) {
-            if ($this->getDefaultParameterGroup($method) === self::PARAMETER_GROUP_BODY) {
-                return $this->buildBodyFromParameters($data, $rowNr, $method);
+        try {
+            if ($body === null) {
+                if ($this->getDefaultParameterGroup($method) === self::PARAMETER_GROUP_BODY) {
+                    return $this->buildBodyFromParameters($data, $rowNr, $method);
+                } else {
+                    return '';
+                }
             } else {
-                return '';
+                return $this->buildBodyFromTemplate($body, $data, $rowNr, $method);
             }
-        } else {
-            return $this->buildBodyFromTemplate($body, $data, $rowNr, $method);
+        } catch (\Throwable $e) {
+            throw new ActionRuntimeError($this, 'Cannot build HTTP body for webservice request. ' . $e->getMessage(), null, $e);
         }
     }
     
@@ -993,8 +997,11 @@ class CallWebService extends AbstractAction implements iCallService
         if ($parameter->isRequired() && $parameter->getDataType()->isValueEmpty($val)) {
             throw new ActionInputMissingError($this, 'Value of required parameter "' . $parameter->getName() . '" not set! Please include the corresponding column in the input data or use an input_mapper!', '75C7YOQ');
         }
-        
-        return $parameter->getDataType()->parse($val);
+        try {
+            return $parameter->getDataType()->parse($val);
+        } catch (\Throwable $e) {
+            throw new ActionInputError($this, 'Invalid value "' . $val . '" for webservice parameter "' . $parameter->getName() . '"! ' . $e->getMessage(), null, $e);
+        }
     }
     
     /**
@@ -1126,7 +1133,7 @@ class CallWebService extends AbstractAction implements iCallService
             'required' => $attr->isRequired(),
         ]);
         if ($attr->hasDefaultValue()) {
-            $uxon->setProperty('default_value', $attr->getDefaultValue());
+            $uxon->setProperty('default_value', $attr->getDefaultValue()->__toString());
         }
         return $uxon;
     }
