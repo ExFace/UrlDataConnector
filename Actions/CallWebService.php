@@ -24,6 +24,7 @@ use exface\Core\Interfaces\Actions\ServiceParameterInterface;
 use exface\Core\Interfaces\DataSheets\DataSheetInterface;
 use exface\Core\Interfaces\DataSources\DataSourceInterface;
 use exface\Core\Interfaces\DataSources\DataTransactionInterface;
+use exface\Core\Interfaces\Model\MetaAttributeGroupInterface;
 use exface\Core\Interfaces\Model\MetaObjectInterface;
 use exface\Core\Interfaces\Tasks\ResultInterface;
 use exface\Core\Interfaces\Tasks\TaskInterface;
@@ -111,13 +112,21 @@ use Psr\Http\Message\ResponseInterface;
  * 
  * Instead of writing templates for `body` and `url` manually, you can let the action generate them for you. You will
  * need a list of parameters though. Just like in the templates above, these parameters can either be based on
- * attributes (via `parameters_use_attributes:true`) or totally independent.
+ * attributes via `parameters_for_all_attributes_from_group` or totally independently via `parameters` or even with
+ * a mixture of both.
  * 
  * URL-parameters will be automatically transformed into a URI query string consiting of parameter names as keys and
  * the respective input data values. For body-parameters you will need to specify the desired `content_type`:
  * 
  * - `application/x-www-form-urlencoded` or
  * - `application/json`
+ * 
+ * By default, all parameters to be put into the webservice call must be explicitly defined in `parameters`. You can
+ * bind them to attributes of the actions object with a matching name by turnin on `parameters_use_attributes` - in
+ * this case, you will just need to put the names in `parameters` and no data types, etc. You can also auto-generate
+ * parameters for all attributes of a certain group via `parameters_for_all_attributes_from_group`. This is helpful
+ * if the web service requires ALL parameter to be present all the time, but only some are really important for
+ * certain calls.
  * 
  * If you need more complex structures, than key-value pairs, either use templates or set `parameters_use_attributes`
  * to `true` and define data addresses in the attributes in the same way as you would do for URL query builders.
@@ -353,8 +362,9 @@ class CallWebService extends AbstractAction implements iCallService
     /**
      * @var ServiceParameterInterface[]
      */
-    private $parameters = [];
-    private $parametersUseAttrs = false;
+    private array $parameters = [];
+    private bool $parametersUseAttrs = false;
+    private ?string $parametersForAllAttrsFromGroup = null;
     
     /**
      * @var bool
@@ -645,7 +655,7 @@ class CallWebService extends AbstractAction implements iCallService
                         $path = $name;
                     }
                     $val = $data->getCellValue($name, $rowNr);
-                    $val = $this->prepareParamValue($param, $val) ?? '';
+                    $val = $this->prepareParamValue($param, $val);
                     $params = ArrayDataType::replaceViaXPath($params, $path, $val);
                 }
                 $str = json_encode($params);
@@ -1012,16 +1022,37 @@ class CallWebService extends AbstractAction implements iCallService
     {
         if ($this->parametersGeneratedFromPlaceholders === false) {
             $this->parametersGeneratedFromPlaceholders = true;
-            $params = [];
+            
+            $expclicitParams = [];
+            $defaultGroup = $this->getDefaultParameterGroup($this->getMethod());
+            foreach ($this->parameters as $param) {
+                $expclicitParams[$param->getName()] = $param->getGroup($defaultGroup);
+            }
+            
+            // Generate parameters from attributes - but only if there is no such parameter explicitly defined
+            if ($this->willGenerateParametersFromAttributes()) {
+                foreach ($this->getAttributeGroupToGenerateParameters()->getAttributes() as $attr) {
+                    $paramUxon = $this->findParameterUxonInAttributes($attr->getAliasWithRelationPath());
+                    $name = $paramUxon->getProperty('name');
+                    if ($defaultGroup !== ($expclicitParams[$name] ?? null)) {
+                        $this->parameters[] = new ServiceParameter($this, $paramUxon);
+                    }
+                }
+            }
+
+            // Generate parameters from template placeholders - but only if that parameter does not exist yet!
+            $paramsFromPhs = [];
             if (null !== $tpl = $this->getBody()) {
-                $params = $this->findParametersInBody($tpl);
+                $paramsFromPhs = $this->findParametersInBody($tpl);
             }
             if (null !== $tpl = $this->getUrl()) {
-                $params = array_merge($params, $this->findParametersInUrl($tpl));
+                $paramsFromPhs = array_merge($paramsFromPhs, $this->findParametersInUrl($tpl));
             }
-            // Make sure to keep explicitly defined parameters as-is and just add
-            // those placeholders, that were not put into the parameters list manually.
-            $this->parameters = array_merge($params, $this->parameters);
+            foreach($paramsFromPhs as $paramGenerated) {
+                if ($defaultGroup !== ($expclicitParams[$paramGenerated->getName()] ?? null)) {
+                    $this->parameters[] = $paramGenerated;
+                }
+            }
         }
         return $this->parameters;
     }
@@ -1043,7 +1074,7 @@ class CallWebService extends AbstractAction implements iCallService
                     "required" => true,
                     "group" => self::PARAMETER_GROUP_URL
                 ]);
-                if ($useAttributes && null !== $attrUxon = $this->findParameterInAttributes($ph)) {
+                if ($useAttributes && null !== $attrUxon = $this->findParameterUxonInAttributes($ph)) {
                     $paramUxon = $paramUxon->extend($attrUxon);
                 }
                 $params[] = new ServiceParameter($this, $paramUxon);
@@ -1106,7 +1137,7 @@ class CallWebService extends AbstractAction implements iCallService
                     "required" => true,
                     "group" => self::PARAMETER_GROUP_BODY
                 ]);
-                if ($useAttributes && $attrParamUxon = $this->findParameterInAttributes($ph)) {
+                if ($useAttributes && $attrParamUxon = $this->findParameterUxonInAttributes($ph)) {
                     $uxon = $uxon->extend($attrParamUxon);
                 }
                 $params[] = new ServiceParameter($this, $paramUxon);
@@ -1116,7 +1147,7 @@ class CallWebService extends AbstractAction implements iCallService
         return $params;
     }
     
-    protected function findParameterInAttributes(string $paramName) : ?UxonObject
+    protected function findParameterUxonInAttributes(string $paramName) : ?UxonObject
     {
         $obj = $this->getMetaObject();
         if ($obj->hasAttribute($paramName)) {
@@ -1153,7 +1184,7 @@ class CallWebService extends AbstractAction implements iCallService
         $useAttributes = $this->willUseAttributesAsParameters();
         foreach ($uxon as $paramUxon) {
             // If we match parameters with attributes and there is 
-            if ($useAttributes && $attrParamUxon = $this->findParameterInAttributes($paramUxon->getProperty('name'))) {
+            if ($useAttributes && $attrParamUxon = $this->findParameterUxonInAttributes($paramUxon->getProperty('name'))) {
                 $paramUxon = $attrParamUxon->extend($paramUxon);
             }
             $this->parameters[] = new ServiceParameter($this, $paramUxon);
@@ -1446,5 +1477,43 @@ class CallWebService extends AbstractAction implements iCallService
     {
         $this->dataPlaceholders = $value;
         return $this;
+    }
+
+    /**
+     * Automatically generate parameters for all attributes from this attribute group.
+     * 
+     * This is handy, if you have a separate meta object with attributes for every parameter of the web service. 
+     * Using this option you can auto-generate action parameter from the attributes instead of defining them in
+     * the action configuration. If the object has more attributes, put all parameter-attributes in an attribute 
+     * group and use that.
+     * 
+     * @uxon-property parameters_for_all_attributes_from_group
+     * @uxon-type metamodel:attribute_group
+     * @uxon-template ~WRITABLE
+     * 
+     * @param string $groupAlias
+     * @return $this
+     */
+    public function setParametersForAllAttributesFromGroup(string $groupAlias) : CallWebService
+    {
+        $this->parametersForAllAttrsFromGroup = $groupAlias;
+        $this->setParametersUseAttributes(true);
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    protected function willGenerateParametersFromAttributes() : bool
+    {
+        return $this->parametersForAllAttrsFromGroup !== null;
+    }
+
+    /**
+     * @return MetaAttributeGroupInterface|null
+     */
+    protected function getAttributeGroupToGenerateParameters() : ?MetaAttributeGroupInterface
+    {
+        return $this->getMetaObject()->getAttributeGroup($this->parametersForAllAttrsFromGroup);
     }
 }
