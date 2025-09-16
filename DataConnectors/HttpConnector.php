@@ -6,6 +6,7 @@ use exface\UrlDataConnector\Psr7DataQuery;
 use exface\Core\Interfaces\DataSources\DataQueryInterface;
 use exface\Core\Exceptions\DataSources\DataConnectionQueryTypeError;
 use exface\Core\Exceptions\DataSources\DataConnectionFailedError;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Response;
 use exface\Core\CommonLogic\Filemanager;
 use GuzzleHttp\HandlerStack;
@@ -391,14 +392,8 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
                 }
                 
                 $query->setResponse($response);
-            } catch (RequestException $re) {
-                if ($response = $re->getResponse()) {
-                    $query->setResponse($response);
-                } else {
-                    $response = null;
-                }
-                $query->setRequest($re->getRequest());
-                throw $this->createResponseException($query, $response, $re);
+            } catch (\Throwable $re) {
+                throw $this->createResponseException($query, $response ?? null, $re);
             }
         }
         return $query;
@@ -417,15 +412,9 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
         try {
             $request = $this->prepareRequest($request);
             $response = $this->getClient()->send($request, $requestOptions);
-        } catch (RequestException $re) {
+        } catch (\Throwable $re) {
             $query = new Psr7DataQuery($request);
-            if ($response = $re->getResponse()) {
-                $query->setResponse($response);
-            } else {
-                $response = null;
-            }
-            $query->setRequest($re->getRequest());
-            throw $this->createResponseException($query, $response, $re);
+            throw $this->createResponseException($query, null, $re);
         }
         
         return $response;
@@ -490,6 +479,15 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
      */
     protected function createResponseException(Psr7DataQuery $query, ResponseInterface $response = null, \Throwable $exceptionThrown = null)
     {
+        // Save the real request including base URL, headers, etc.
+        if ($exceptionThrown instanceof RequestException || $exceptionThrown instanceof ConnectException) {
+            $query->setRequest($exceptionThrown->getRequest());
+        }
+        // Get the response from the exception if not provided explicitly
+        if ($response === null && $exceptionThrown instanceof RequestException && null !== $response = $exceptionThrown->getResponse()) {
+            $query->setResponse($response);
+        } 
+        // Try to get some information from the response
         if ($response !== null) {
             $message = $this->getResponseErrorText($response, $exceptionThrown);
             $code = $this->getResponseErrorCode($response, $exceptionThrown);
