@@ -4,6 +4,7 @@ namespace exface\UrlDataConnector\QueryBuilders;
 use exface\Core\CommonLogic\QueryBuilder\AbstractQueryBuilder;
 use exface\Core\CommonLogic\QueryBuilder\QueryPartFilter;
 use exface\Core\CommonLogic\QueryBuilder\QueryPartSorter;
+use exface\Core\Templates\Modifiers\IfNullModifier;
 use exface\UrlDataConnector\Psr7DataQuery;
 use GuzzleHttp\Psr7\Request;
 use exface\Core\Exceptions\QueryBuilderException;
@@ -523,7 +524,8 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
                             // Remember the original filter (not it's copy from $requestFilters) for further processing!
                             $this->setRequestSplitFilter($queryFilters->getFilters()[$nr]);
                         }
-                        $value = reset(explode($qpart->getValueListDelimiter(), $qpart->getCompareValue()));
+                        $values = explode($qpart->getValueListDelimiter(), $qpart->getCompareValue());
+                        $value = reset($values);
                     } else {
                         $value = $qpart->getCompareValue();
                     }
@@ -878,18 +880,27 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
     {
         $filterGroup = $filterGroup ?? $this->getFilters();
         foreach (StringDataType::findPlaceholders($url_string) as $ph) {
+            $defaultValue = null;
+            $phAlias = IfNullModifier::stripFilter($ph);
+            if ($phAlias !== $ph) {
+                $defaultValue = IfNullModifier::findDefaultValue($ph);
+            }
         	$foundPlaceholder = false;
-            if ($ph_filter = $filterGroup->findFilterByAlias($ph)) {
-                if (! is_null($ph_filter->getCompareValue())) {
+            if ($ph_filter = $filterGroup->findFilterByAlias($phAlias)) {
+                if (null !== $ph_filter->getCompareValue()) {
                 	$foundPlaceholder = true;
-                    if ($this->getRequestSplitFilter() == $ph_filter && $ph_filter->getComparator() == ComparatorDataType::IN) {
+                    if ($this->getRequestSplitFilter() === $ph_filter && $ph_filter->getComparator() == ComparatorDataType::IN) {
                         $ph_value = explode($ph_filter->getValueListDelimiter(), $ph_filter->getCompareValue())[0];
                     } else {
                         $ph_value = $this->buildUrlFilterValue($ph_filter);
                     }
+                } else {
+                    $ph_value = $defaultValue;
+                }
+                if ($ph_value !== null) {
                     $this->setUrlPlaceholderValue($ph, $ph_value);
                     $url_string = str_replace('[#' . $ph . '#]', $ph_value, $url_string);
-                } 
+                }
             } 
             
             if ($foundPlaceholder === false) {
@@ -1631,5 +1642,20 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
     		default:
     			return false;
     	}
+    }
+
+    /**
+     * {@inheritDoc}
+     * @see AbstractQueryBuilder::addAggregation()
+     */
+    public function addAggregation($attribute_alias)
+    {
+        $qpart = parent::addAggregation($attribute_alias);
+        // Make sure, things we are aggregating over are read as aggregation will be applied in-memory after reading
+        // TODO what if the web service actually CAN do some aggregations? We don't need to read those here!
+        if (! $this->getAttribute($attribute_alias)) {
+            $this->addAttribute($attribute_alias)->excludeFromResult(true);
+        }
+        return $qpart;
     }
 }

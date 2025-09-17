@@ -6,6 +6,7 @@ use exface\UrlDataConnector\Psr7DataQuery;
 use exface\Core\Interfaces\DataSources\DataQueryInterface;
 use exface\Core\Exceptions\DataSources\DataConnectionQueryTypeError;
 use exface\Core\Exceptions\DataSources\DataConnectionFailedError;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Response;
 use exface\Core\CommonLogic\Filemanager;
 use GuzzleHttp\HandlerStack;
@@ -128,8 +129,6 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
     private $password = null;
 
     private $proxy = null;
-
-    private $charset = null;
     
     private $errorTextPattern = null;
     
@@ -167,22 +166,12 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
     
     private $debugResponse = null;
     
-    // Authentication
-    /**
-     * 
-     * @var ?UxonObject
-     */
-    private $authentication = null;
+    private $timeout = null;
     
+    // Authentication    
     private $authProvider = null;
-    
     private $authProviderUxon = null;
-    
-    /**
-     *
-     * @var boolean
-     */
-    private $authenticationRetryAfterFail = true;
+    private bool $authenticationRetryAfterFail = true;
     
     /**
      *
@@ -328,6 +317,11 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
             $defaults['headers'] = $this->getHeaders();
         }
         
+        // Timeout
+        if ($this->getTimeout() !== null) {
+            $defaults['timeout'] = $this->getTimeout();
+        }
+        
         try {
             $this->setClient(new Client($defaults));
         } catch (\Throwable $e) {
@@ -389,20 +383,17 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
                     $dbg = $this->getDebugResponse();
                     $dbgHeaders = $dbg->getProperty('headers') ? $dbg->getProperty('headers')->toArray() : [];
                     $dbgBody = $dbg->getProperty('body') instanceof UxonObject ? $dbg->getProperty('body')->toJson(true) : $dbg->getProperty('body');
-                    $response = new Response($dbg->getProperty('status') ?? '200', $dbgHeaders, $dbgBody);   
+                    $response = new Response($dbg->getProperty('status') ?? '200', $dbgHeaders, $dbgBody); 
+                    if ($response->getStatusCode() >= 400) {
+                        throw new RequestException('FAKE error from HTTP connector debug mode', $request, $response);
+                    }
                 } else {
                     $response = $this->getClient()->send($request);
                 }
                 
                 $query->setResponse($response);
-            } catch (RequestException $re) {
-                if ($response = $re->getResponse()) {
-                    $query->setResponse($response);
-                } else {
-                    $response = null;
-                }
-                $query->setRequest($re->getRequest());
-                throw $this->createResponseException($query, $response, $re);
+            } catch (\Throwable $re) {
+                throw $this->createResponseException($query, $response ?? null, $re);
             }
         }
         return $query;
@@ -421,15 +412,9 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
         try {
             $request = $this->prepareRequest($request);
             $response = $this->getClient()->send($request, $requestOptions);
-        } catch (RequestException $re) {
+        } catch (\Throwable $re) {
             $query = new Psr7DataQuery($request);
-            if ($response = $re->getResponse()) {
-                $query->setResponse($response);
-            } else {
-                $response = null;
-            }
-            $query->setRequest($re->getRequest());
-            throw $this->createResponseException($query, $response, $re);
+            throw $this->createResponseException($query, null, $re);
         }
         
         return $response;
@@ -494,6 +479,15 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
      */
     protected function createResponseException(Psr7DataQuery $query, ResponseInterface $response = null, \Throwable $exceptionThrown = null)
     {
+        // Save the real request including base URL, headers, etc.
+        if ($exceptionThrown instanceof RequestException || $exceptionThrown instanceof ConnectException) {
+            $query->setRequest($exceptionThrown->getRequest());
+        }
+        // Get the response from the exception if not provided explicitly
+        if ($response === null && $exceptionThrown instanceof RequestException && null !== $response = $exceptionThrown->getResponse()) {
+            $query->setResponse($response);
+        } 
+        // Try to get some information from the response
         if ($response !== null) {
             $message = $this->getResponseErrorText($response, $exceptionThrown);
             $code = $this->getResponseErrorCode($response, $exceptionThrown);
@@ -1502,6 +1496,26 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
     protected function setDebugResponse(UxonObject $value) : HttpConnector
     {
         $this->debugResponse = $value;
+        return $this;
+    }
+    
+    protected function getTimeout() : ?int
+    {
+        return $this->timeout;
+    }
+
+    /**
+     * Set a timeout in seconds for all HTTP requests of this connection
+     * 
+     * @uxon-property timeout
+     * @uxon-type integer
+     * 
+     * @param int $value
+     * @return $this
+     */
+    protected function setTimeout(int $value) : HttpConnector
+    {
+        $this->timeout = $value;
         return $this;
     }
 }
