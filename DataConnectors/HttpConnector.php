@@ -50,6 +50,17 @@ use exface\Core\DataTypes\LogLevelDataType;
  * 
  * Similarly, static URL parameters can be added via `fixed_url_params`.
  * 
+ * ## Headers
+ * 
+ * The connector attempts to set appropriate headers automatically, but you can also add your own
+ * to `headers` if you like. Apart from that the following properties also affect headers:
+ * 
+ * - `authentication` - see below
+ * - `headers_calculate_content_length` - force to calculate (or not) the content length explicitly.
+ * If not set, the Content-Length header will probably be added automatically by the OS-level cURL
+ * library.
+ * - `send_request_id_with_header` - will send the current request id with the provided header
+ * 
  * ## Authentication
  * 
  * This connector supports extensible authentication provider plugins. They can be configured
@@ -92,6 +103,12 @@ use exface\Core\DataTypes\LogLevelDataType;
  * Can cache responses. By default caching is disabled. Use `cache_enabled` to turn it on
  * and ther `cache_*` properties for configuration.
  * 
+ * ## cURL options
+ * 
+ * Under the hood, the HttpConnector uses the well known Guzzle library, which in-turn relies
+ * on cURL. You can set a lot of [cURL options](https://www.php.net/manual/en/curl.constants.php#constant.curlopt-abstract-unix-socket) 
+ * in `curl_options` if you like
+ * 
  * ## Error handling
  * 
  * Apart from the regular data source error handling, this connector can show server error
@@ -125,53 +142,48 @@ use exface\Core\DataTypes\LogLevelDataType;
 class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterface
 {
     private $user = null;
-
     private $password = null;
-
-    private $proxy = null;
     
+    // Errors
     private $errorTextPattern = null;
-    
     private $errorTextUseAsMessageTitle = null;
-    
     private $errorCode = null;
-    
     private $errorCodePattern = null;
-    
     private $errorLevelPatterns = [];
 
+    // Guzzle & its options
+    private $client;
+    private $proxy = null;
+    private $timeout = null;
+    private $curlOpts = [];
+    
+    // Cookies
     private $use_cookies = false;
-    
     private $use_cookie_sessions = false;
-    
     private $cookieJar = null;
 
+    // Cache
     private $cache_enabled = false;
-
     private $cache_ignore_headers = false;
-
     private $cache_lifetime_in_seconds = 0;
     
-    private $fixed_params = '';
-
-    private $client;
-    
-    private $swaggerUrl = null;
-    
+    // Headers
+    private $headers = [];
+    private ?bool $headersCalcContentLength = null;
     private $sendRequestIdWithHeader = null;
     
-    private $headers = [];
-    
+    // Debug mode with fake responses
     private $debug = false;
-    
     private $debugResponse = null;
-    
-    private $timeout = null;
     
     // Authentication    
     private $authProvider = null;
     private $authProviderUxon = null;
     private bool $authenticationRetryAfterFail = true;
+
+    private $fixed_params = '';
+
+    private $swaggerUrl = null;
     
     /**
      *
@@ -322,6 +334,11 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
             $defaults['timeout'] = $this->getTimeout();
         }
         
+        // cURL options
+        if (! empty($this->getCurlOptions())) {
+            $defaults['curl'] = $this->getCurlOptions();
+        }
+        
         try {
             $this->setClient(new Client($defaults));
         } catch (\Throwable $e) {
@@ -457,12 +474,17 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
             }
         }
         
+        // Add Content-Length header if requested
+        if ($this->willHeadersCalculateContentLength() === true) {
+            $request->withHeader('Content-length', strlen($request->getBody()->__toString()));
+        }
+        
         // Add the X-Request-ID header if required
         if ($requestIdHeader = $this->getSendRequestIdWithHeader()) {
             $request = $request->withHeader($requestIdHeader, $this->getWorkbench()->getContext()->getScopeRequest()->getRequestId());
         }
         
-        // Now add everything related to authentication by pssing the request to the auth
+        // Now add everything related to authentication by passing the request to the auth
         // provider.
         if ($this->hasAuthentication()) {
             $request = $this->getAuthProvider()->signRequest($request);
@@ -1447,6 +1469,32 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
         $this->headers = ($value instanceof UxonObject ? $value->toArray() : $value);
         return $this;
     }
+
+    /**
+     * @return bool|null
+     */
+    protected function willHeadersCalculateContentLength() : ?bool
+    {
+        return $this->headersCalcContentLength;
+    }
+
+    /**
+     * Set to TRUE or FALSE to explicitly force to calculate/omit the Content-Length header.
+     * 
+     * If not set, the Content-Length header will probably be added automatically by the OS-level 
+     * cURL library.
+     * 
+     * @uxon-property headers_calculate_content_length
+     * @uxon-type boolean
+     * 
+     * @param bool $value
+     * @return $this
+     */
+    public function setHeadersCalculateContentLength(bool $value) : HttpConnector
+    {
+        $this->headersCalcContentLength = $value;
+        return $this;
+    }
     
     protected function isDebugMode() : bool
     {
@@ -1516,6 +1564,34 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
     protected function setTimeout(int $value) : HttpConnector
     {
         $this->timeout = $value;
+        return $this;
+    }
+    
+    protected function getCurlOptions() : array
+    {
+        return $this->curlOpts;
+    }
+
+    /**
+     * Custom cURL options to be used for every request
+     * 
+     * @uxon-property curl_options
+     * @uxon-type object
+     * @uxon-template {"CURL_": ""}
+     * 
+     * @param array $array
+     * @return $this
+     */
+    public function setCurlOptions(UxonObject $uxonArray) : HttpConnector
+    {
+        $opts = [];
+        foreach ($uxonArray->getPropertiesAll() as $constant => $value) {
+            if (! defined($constant)) {
+                throw new DataConnectionConfigurationError($this, 'Invalid cURL option "' . $constant . '": expecting PHP constant names as defined here: https://www.php.net/manual/en/curl.constants.php#constant.curlopt-abstract-unix-socket');    
+            }
+            $opts[constant($constant)] = $value;
+        }
+        $this->curlOpts = $opts;
         return $this;
     }
 }
