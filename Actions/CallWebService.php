@@ -648,6 +648,7 @@ class CallWebService extends AbstractAction implements iCallService
                         continue;
                     }
                     $name = $param->getName();
+                    $path = null;
                     if ($useAttributes && $obj->hasAttribute($name)) {
                         $path = $obj->getAttribute($name)->getDataAddress();
                     }
