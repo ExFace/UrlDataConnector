@@ -1001,11 +1001,19 @@ class CallWebService extends AbstractAction implements iCallService
      */
     protected function prepareParamValue(ServiceParameterInterface $parameter, $val)
     {
-        if ($parameter->hasDefaultValue() === true && $val === null) {
+        $type = $parameter->getDataType();
+        
+        // If value is not there, use default
+        if ($val === null && $parameter->hasDefaultValue() === true) {
             $val = $parameter->getDefaultValue();
         }
         
-        if ($parameter->isRequired() && $parameter->getDataType()->isValueEmpty($val)) {
+        // If value is empty, format it properly
+        if ($type::isValueEmpty($val) && null !== $emptyExpr = $parameter->getEmptyExpression()) {
+            $val = $emptyExpr->evaluate();
+        }
+        
+        if ($parameter->isRequired() && $type::isValueEmpty($val)) {
             throw new ActionInputMissingError($this, 'Value of required parameter "' . $parameter->getName() . '" not set! Please include the corresponding column in the input data or use an input_mapper!', '75C7YOQ');
         }
         try {
