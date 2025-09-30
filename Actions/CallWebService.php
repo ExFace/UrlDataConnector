@@ -55,7 +55,7 @@ use Psr\Http\Message\ResponseInterface;
  * or `body` parameters. The name of a parameter must match a column name in the actions input (it is not always 
  * the same as an attribute alias!).
  *
- * If the `group` of a parameter is ommitted, it will depend on the request method: parameters of
+ * If the `group` of a parameter is omitted, it will depend on the request method: parameters of
  * GET-requests are treated as URL-parameters, while POST-request parameters will be placed in the body.
  * 
  * ## Payload - URL and body
@@ -122,7 +122,7 @@ use Psr\Http\Message\ResponseInterface;
  * - `application/json`
  * 
  * By default, all parameters to be put into the webservice call must be explicitly defined in `parameters`. You can
- * bind them to attributes of the actions object with a matching name by turnin on `parameters_use_attributes` - in
+ * bind them to attributes of the actions object with a matching name by turning on `parameters_use_attributes` - in
  * this case, you will just need to put the names in `parameters` and no data types, etc. You can also auto-generate
  * parameters for all attributes of a certain group via `parameters_for_all_attributes_from_group`. This is helpful
  * if the web service requires ALL parameter to be present all the time, but only some are really important for
@@ -130,6 +130,17 @@ use Psr\Http\Message\ResponseInterface;
  * 
  * If you need more complex structures, than key-value pairs, either use templates or set `parameters_use_attributes`
  * to `true` and define data addresses in the attributes in the same way as you would do for URL query builders.
+ * 
+ * ## Handling empty values
+ * 
+ * The workbench does not normalize empty values to `null` or empty string automatically. Empty values are kept the
+ * way they were received from outside by default. However, many web services have rules, how to pass empty
+ * values correctly. To change empty value handling, you will need a `parameters` model, where you can use 
+ * `empty_as_null` to normalize empty values to `null` or `empty_expression` to use a custom expression to indicate,
+ * that a value was empty.
+ * 
+ * Note the difference between `empty_expression` and `default_value`: the former tells the web service, that the
+ * value is empty, while the latter replaces an empty value by a non-empty default.
  * 
  * ## Success messages and action results
  * 
