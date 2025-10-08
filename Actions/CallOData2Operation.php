@@ -86,9 +86,17 @@ class CallOData2Operation extends CallWebService
                 return "''";
             }
         }
-        
-        if ($parameter->hasDefaultValue() === true && $val === null) {
+
+        $type = $parameter->getDataType();
+
+        // If value is not there, use default
+        if ($val === null && $parameter->hasDefaultValue() === true) {
             $val = $parameter->getDefaultValue();
+        }
+
+        // If value is empty, format it properly
+        if ($type::isValueEmpty($val) && null !== $emptyExpr = $parameter->getEmptyExpression()) {
+            $val = $emptyExpr->evaluate();
         }
         
         if ($parameter->isRequired() && $parameter->getDataType()->isValueEmpty($val)) {
