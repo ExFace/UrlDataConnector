@@ -14,6 +14,17 @@ use Psr\Http\Message\ResponseInterface;
  * This class provides the constructor and methods depending on it as well
  * as the link to a custom UXON schema for HTTP authentication providers.
  * 
+ * HTTP connections have a separate `authentication` configuration, that contains all information required
+ * for different providers - HTTP basic auth, OAuth2, SSL Certificates, all sorts of token based authentication,
+ * etc.
+ * 
+ * Each authentication provider also has an authenticate method. However, that only handles the provider specific
+ * logic (e.g. token exchange) while this method here takes care of instantiating the provider, calling it and
+ * storing the authenticated token in the credential storage. If the auth provider supports credential storage,
+ * it will store everything required for the next authentication there. Thus, the next time the connection is
+ * instantiated, the information from the credential storage will be loaded on-top of the config stored in the
+ * connection.
+ * 
  * @author Andrej Kabachnik
  *
  */

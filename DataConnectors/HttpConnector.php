@@ -186,7 +186,11 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
     private $swaggerUrl = null;
     
     /**
-     *
+     * Calls the authentication provider configured for this connection explicitly and saves secrets to credential storage if required
+     * 
+     * If the auth provider supports the built-in credential storage, it will return some confidential information
+     * in `$authProvider->getCredentialsUxon()` - this will be stored in the credential storage automatically
+     * 
      * {@inheritDoc}
      * @see \exface\Core\Interfaces\DataSources\DataConnectionInterface::authenticate()
      */
