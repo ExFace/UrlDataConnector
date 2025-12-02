@@ -1,6 +1,7 @@
 <?php
 namespace exface\UrlDataConnector\Actions;
 
+use exface\Core\CommonLogic\Debugger\LogBooks\ActionLogBook;
 use exface\Core\Interfaces\DataSheets\DataSheetInterface;
 use Psr\Http\Message\ResponseInterface;
 use exface\Core\Factories\ResultFactory;
@@ -150,17 +151,17 @@ class CallGraphQLQuery extends CallWebService
      * {@inheritDoc}
      * @see \exface\UrlDataConnector\Actions\CallWebService::buildBody()
      */
-    protected function buildBody(DataSheetInterface $data, int $rowNr, string $method) : string
+    protected function buildBody(DataSheetInterface $data, string $method, ActionLogBook $logbook, ?int $rowNr = null) : string
     {
-        $body = parent::buildBody($data, $rowNr, $method);
+        $body = parent::buildBody($data, $rowNr, $method, $logbook);
         if ($body === '') {
-            $body = $this->buildGqlBody($data, $rowNr);
+            $body = $this->buildGqlBody($data, $rowNr, $logbook);
         }
         
         return $body;
     }
     
-    protected function buildGqlBody(DataSheetInterface $data, int $rowNr) : string
+    protected function buildGqlBody(DataSheetInterface $data, int $rowNr, ActionLogBook $logbook) : string
     {
         return <<<GraphQL
 
