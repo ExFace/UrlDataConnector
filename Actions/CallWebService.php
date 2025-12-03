@@ -5,6 +5,7 @@ use exface\Core\CommonLogic\AbstractAction;
 use exface\Core\CommonLogic\Actions\ServiceParameter;
 use exface\Core\CommonLogic\Constants\Icons;
 use exface\Core\CommonLogic\Debugger\LogBooks\ActionLogBook;
+use exface\Core\CommonLogic\Debugger\LogBooks\DataLogBook;
 use exface\Core\CommonLogic\Model\Expression;
 use exface\Core\CommonLogic\UxonObject;
 use exface\Core\DataTypes\ArrayDataType;
@@ -653,7 +654,7 @@ class CallWebService extends AbstractAction implements iCallService
      */
     protected function buildBodyFromParameters(DataSheetInterface $data, string $method, ActionLogBook $logbook, ?int $rowNr = null) : string
     {
-        $logbook->addLine('Body generated from `parameters`');
+        $logbook->addLine('Generating request body from service parameters ' . ($rowNr === null ? 'for all rows' : 'for row `' . $rowNr . '`'));
         $logbook->addIndent(+1);
         $str = '';
         $contentType = $this->getContentType();
@@ -842,7 +843,6 @@ class CallWebService extends AbstractAction implements iCallService
         $input = $this->getInputDataSheet($task);
         $logbook = $this->getLogBook($task);
         $this->logbook = $logbook;
-        $logbook->setIndentActive(1);
         
         $resultData = DataSheetFactory::createFromObject($this->getResultObject());
         $resultData->setAutoCount(false);
@@ -857,17 +857,18 @@ class CallWebService extends AbstractAction implements iCallService
         }
         
         // Make sure all required parameters are present in the data
-        $params = $this->getParameters(null, $logbook);
-        $logbook->addLine('Found ' . count($params) . ' service parameters. Checking if input data has all required parameters');
-        
+        $logbook->addLine('Preparing input data fow webservice: ' . DataLogBook::buildTitleForData($input));
         $logbook->addIndent(+1);
+        $logbook->addLine('Looking for webservice parameters');
+        $params = $this->getParameters(null, $logbook);
+        $logbook->addLine('Checking if input data has all required parameters');
         $input = $this->getDataWithParams($input, $params, $logbook);  
         $logbook->addIndent(-1);
         
         $httpConnection = $this->getDataConnection();
 
         // Call the webservice for every row in the input data.
-        $logbook->addLine('Firing ' . $requestCnt . ' . HTTP requests for ' . $rowCnt . ' input rows');
+        $logbook->addLine('Sending **' . $requestCnt . '** HTTP requests for **' . $rowCnt . '** input rows via connection `' . $httpConnection->getAliasWithNamespace() . '`');
         $logbook->addIndent(+1);
         for ($i = 0; $i < $requestCnt; $i++) {
             $method = $this->buildMethod($input, $i);
@@ -1092,48 +1093,71 @@ class CallWebService extends AbstractAction implements iCallService
      */
     public function getParameters(string $group = null, ActionLogBook $logbook = null) : array
     {
+        // Fill parameter cache 
         if ($this->parametersGeneratedFromPlaceholders === false) {
             $this->parametersGeneratedFromPlaceholders = true;
             $logbook?->addIndent(+1);
             
-            $expclicitParams = [];
+            $expclicitParamGroups = [];
             $defaultGroup = $this->getDefaultParameterGroup($this->getMethod());
             foreach ($this->parameters as $param) {
-                $expclicitParams[$param->getName()] = $param->getGroup($defaultGroup);
+                $expclicitParamGroups[$param->getName()] = $param->getGroup($defaultGroup);
             }
-            $logbook?->addLine('`parameters` defined in action explicitly - ' . count($expclicitParams) . '.');
+            $paramNames = empty($expclicitParamGroups) ? '' : ' `' . implode('`, `', array_keys($expclicitParamGroups)) . '`';
+            $logbook?->addLine('`parameters` defined in action explicitly - ' . count($expclicitParamGroups) . '.' . $paramNames);
             
             // Generate parameters from attributes - but only if there is no such parameter explicitly defined
             if ($this->willGenerateParametersFromAttributes()) {
+                $paramsFromAttributes = [];
                 foreach ($this->getAttributeGroupToGenerateParameters()->getAttributes() as $attr) {
                     $paramUxon = $this->findParameterUxonInAttributes($attr->getAliasWithRelationPath());
                     $name = $paramUxon->getProperty('name');
-                    if ($defaultGroup !== ($expclicitParams[$name] ?? null)) {
-                        $this->parameters[] = new ServiceParameter($this, $paramUxon);
+                    if ($defaultGroup !== ($expclicitParamGroups[$name] ?? null)) {
+                        $param = new ServiceParameter($this, $paramUxon);
+                        $paramsFromAttributes[] = $param->getName();
+                        $this->parameters[] = $param;
                     }
                 }
-                $logbook?->addLine('`parameters_from_attributes` - ' . (count($this->parameters) - count($expclicitParams)) . '.');
+                $paramNames = empty($paramsFromAttributes) ? '' : ' `' . implode('`, `', $paramsFromAttributes) . '`';
+                $logbook?->addLine('`parameters_for_all_attributes_from_group` - ' . count($paramsFromAttributes) . '.' . $paramNames . '.');
             } else {
-                $logbook?->addLine('`parameters_from_attributes` - off.');
+                $logbook?->addLine('`parameters_for_all_attributes_from_group` - not set.');
             }
 
             // Generate parameters from template placeholders - but only if that parameter does not exist yet!
             $paramsFromPhs = [];
+            $paramsFromUrl = [];
+            $paramsFromBody = [];
             if (null !== $tpl = $this->getBody()) {
-                $paramsFromPhs = $this->findParametersInBody($tpl);
-                $logbook?->addLine('`body` parameters - ' . count($paramsFromPhs) . '.');
-            }
+                $paramsFromBody = $this->findParametersInBody($tpl);
+                $paramNames = empty($paramsFromBody) ? '' : ' `' . implode('`, `', array_keys($paramsFromBody)) . '`';
+                $logbook?->addLine('`body` placeholders - ' . count($paramsFromBody) . '.' . $paramNames . '.');
+            } 
             if (null !== $tpl = $this->getUrl()) {
-                $paramsFromPhs = array_merge($paramsFromPhs, $this->findParametersInUrl($tpl));
-                $logbook?->addLine('`url` parameters - ' . count($paramsFromPhs) . '.');
+                $paramsFromUrl = array_merge($paramsFromPhs, $this->findParametersInUrl($tpl));
+                $paramNames = empty($paramsFromUrl) ? '' : ' `' . implode('`, `', array_keys($paramsFromUrl)) . '`';
+                $logbook?->addLine('`url` placeholders - ' . count($paramsFromUrl) . '.' . $paramNames . '.');
             }
+            // Parameters from the URL and from the body will probably belong to different groups, so make sure to
+            // keep them all - even if they have the same name!
+            $paramsFromPhs = array_merge(array_values($paramsFromBody), array_values($paramsFromUrl));
+            $paramNamesIgnored = [];
             foreach($paramsFromPhs as $paramGenerated) {
-                if ($defaultGroup !== ($expclicitParams[$paramGenerated->getName()] ?? null)) {
+                if ($defaultGroup !== ($expclicitParamGroups[$paramGenerated->getName()] ?? null)) {
                     $this->parameters[] = $paramGenerated;
+                } else {
+                    $paramNamesIgnored[] = $paramGenerated->getName();
                 }
+            }
+            if (! empty($paramNamesIgnored)) {
+                $paramNames = ' `' . implode('`, `', $paramNamesIgnored) . '`';
+                $logbook?->addLine('Ignoring ' . count($paramNamesIgnored) . ' parameters because they have a different group.' . $paramNames . '.');
             }
             $logbook?->addIndent(-1);
         }
+        
+        // If a specific group is requested, filter the cache.
+        // Otherwise return it as-is.
         if ($group !== null) {
             $filtered = [];
             foreach ($this->parameters as $param) {
@@ -1167,7 +1191,8 @@ class CallWebService extends AbstractAction implements iCallService
                 if ($useAttributes && null !== $attrUxon = $this->findParameterUxonInAttributes($ph)) {
                     $paramUxon = $paramUxon->extend($attrUxon);
                 }
-                $params[] = new ServiceParameter($this, $paramUxon);
+                $param = new ServiceParameter($this, $paramUxon);
+                $params[$param->getName()] = $param;
             }
         }
         return $params;
@@ -1230,7 +1255,8 @@ class CallWebService extends AbstractAction implements iCallService
                 if ($useAttributes && $attrParamUxon = $this->findParameterUxonInAttributes($ph)) {
                     $uxon = $uxon->extend($attrParamUxon);
                 }
-                $params[] = new ServiceParameter($this, $paramUxon);
+                $param = new ServiceParameter($this, $paramUxon);
+                $params[$param->getName()] = $param;
             }
         }
         
