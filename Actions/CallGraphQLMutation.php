@@ -1,6 +1,7 @@
 <?php
 namespace exface\UrlDataConnector\Actions;
 
+use exface\Core\CommonLogic\Debugger\LogBooks\ActionLogBook;
 use exface\Core\Interfaces\DataSheets\DataSheetInterface;
 
 /**
@@ -78,7 +79,7 @@ class CallGraphQLMutation extends CallGraphQLQuery
         return $this->mutationName;
     }
     
-    protected function buildGqlBody(DataSheetInterface $data, int $rowNr) : string
+    protected function buildGqlBody(DataSheetInterface $data, int $rowNr, ActionLogBook $logbook) : string
     {
         return <<<GraphQL
         

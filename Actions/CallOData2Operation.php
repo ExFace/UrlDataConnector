@@ -1,6 +1,7 @@
 <?php
 namespace exface\UrlDataConnector\Actions;
 
+use exface\Core\CommonLogic\Debugger\LogBooks\ActionLogBook;
 use exface\Core\Interfaces\DataSheets\DataSheetInterface;
 use Psr\Http\Message\ResponseInterface;
 use exface\Core\Interfaces\Actions\ServiceParameterInterface;
@@ -52,9 +53,9 @@ class CallOData2Operation extends CallWebService
      * {@inheritDoc}
      * @see \exface\UrlDataConnector\Actions\CallWebService::buildUrl()
      */
-    protected function buildUrl(DataSheetInterface $data, int $rowNr, string $method) : string
+    protected function buildUrl(DataSheetInterface $data, int $rowNr, string $method, ActionLogBook $logbook) : string
     {
-        $url = parent::buildUrl($data, $rowNr, $method);
+        $url = parent::buildUrl($data, $rowNr, $method, $logbook);
         if ($this->hasSeparateRequestsForEachRow() === false) {
             $paramName = $this->getUrlParameterForRowData();
             // Remove this special parameter from the URL. Remember, that it will always have an

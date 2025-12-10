@@ -5,10 +5,12 @@ use exface\Core\CommonLogic\AbstractAction;
 use exface\Core\CommonLogic\Actions\ServiceParameter;
 use exface\Core\CommonLogic\Constants\Icons;
 use exface\Core\CommonLogic\Debugger\LogBooks\ActionLogBook;
+use exface\Core\CommonLogic\Debugger\LogBooks\DataLogBook;
 use exface\Core\CommonLogic\Model\Expression;
 use exface\Core\CommonLogic\UxonObject;
 use exface\Core\DataTypes\ArrayDataType;
 use exface\Core\DataTypes\MimeTypeDataType;
+use exface\Core\DataTypes\PhpClassDataType;
 use exface\Core\DataTypes\StringDataType;
 use exface\Core\Exceptions\Actions\ActionConfigurationError;
 use exface\Core\Exceptions\Actions\ActionInputError;
@@ -544,18 +546,19 @@ class CallWebService extends AbstractAction implements iCallService
      * @param $method
      * @return string
      */
-    protected function buildBody(DataSheetInterface $data, int $rowNr, string $method) : string
+    protected function buildBody(DataSheetInterface $data, string $method, ActionLogBook $logbook, ?int $rowNr = null) : string
     {
         $body = $this->getBody();
         try {
             if ($body === null) {
                 if ($this->getDefaultParameterGroup($method) === self::PARAMETER_GROUP_BODY) {
-                    return $this->buildBodyFromParameters($data, $rowNr, $method);
+                    return $this->buildBodyFromParameters($data, $method, $logbook, $rowNr);
                 } else {
+                    $logbook->addLine('Body empty because no `body` template given and no `parameters` found to build a body from');
                     return '';
                 }
             } else {
-                return $this->buildBodyFromTemplate($body, $data, $rowNr, $method);
+                return $this->buildBodyFromTemplate($body, $data, $method, $logbook, $rowNr);
             }
         } catch (\Throwable $e) {
             throw new ActionRuntimeError($this, 'Cannot build HTTP body for webservice request. ' . $e->getMessage(), null, $e);
@@ -570,14 +573,19 @@ class CallWebService extends AbstractAction implements iCallService
      * @param string $method
      * @return string
      */
-    protected function buildBodyFromTemplate(string $template, DataSheetInterface $data, int $rowNr, string $method) : string
+    protected function buildBodyFromTemplate(string $template, DataSheetInterface $data, string $method, ActionLogBook $logbook, ?int $rowNr = null) : string
     {
+        // TODO add support for multiple input-rows - use DataRowPlaceholders 
+        if ($rowNr === null) {
+            throw new ActionRuntimeError('Cannot call webservice with a `body` template for multple input rows at once! Set `separate_requests_for_each_row` to TRUE to handle multiple input rows!');
+        }
+        
         $rowRenderer = new BracketHashStringTemplateRenderer($this->getWorkbench());
         $rowRenderer->addPlaceholder(new ConfigPlaceholders($this->getWorkbench(), '~config:'));
         $rowRenderer->addPlaceholder(new TranslationPlaceholders($this->getWorkbench(), '~translate:'));
         
         // Add a placeholder renderer for all service parameters related to the body
-        $params = $this->getParameters(self::PARAMETER_GROUP_BODY);
+        $params = $this->getParameters(self::PARAMETER_GROUP_BODY, $logbook);
         foreach ($params as $param) {
             $name = $param->getName();
             $val = $data->getCellValue($name, $rowNr);
@@ -644,17 +652,28 @@ class CallWebService extends AbstractAction implements iCallService
      * @param string $method
      * @return string
      */
-    protected function buildBodyFromParameters(DataSheetInterface $data, int $rowNr, string $method) : string
+    protected function buildBodyFromParameters(DataSheetInterface $data, string $method, ActionLogBook $logbook, ?int $rowNr = null) : string
     {
+        $logbook->addLine('Generating request body from service parameters ' . ($rowNr === null ? 'for all rows' : 'for row `' . $rowNr . '`'));
+        $logbook->addIndent(+1);
         $str = '';
         $contentType = $this->getContentType();
         $defaultGroup = $this->getDefaultParameterGroup($method);
         $useAttributes = $this->willUseAttributesAsParameters();
         $obj = $this->getMetaObject();
         switch (true) {
+            // JSON array of objects
+            case MimeTypeDataType::isJson($contentType) && $rowNr === null:
+                $str = '';
+                foreach ($data->getRowIndexes() as $rowNr) {
+                    $str .= ($str ? ', ' : '') . $this->buildBodyFromParameters($data, $method, $logbook, $rowNr);
+                }
+                $str = '[' . $str . ']';
+                break;
+            // JSON object
             case MimeTypeDataType::isJson($contentType):
                 $params = [];
-                foreach ($this->getParameters() as $param) {
+                foreach ($this->getParameters(null, $logbook) as $param) {
                     if ($param->getGroup($defaultGroup) !== self::PARAMETER_GROUP_BODY) {
                         continue;
                     }
@@ -672,8 +691,27 @@ class CallWebService extends AbstractAction implements iCallService
                 }
                 $str = json_encode($params);
                 break;
+            // Urlencoded array
+            case strcasecmp($contentType, MimeTypeDataType::URLENCODED) === 0 && $rowNr === null:
+                $formRows = [];
+                foreach ($data->getRowIndexes() as $rowNr) {
+                    $formRow = [];
+                    foreach ($this->getParameters(null, $logbook) as $param) {
+                        if ($param->getGroup($defaultGroup) !== self::PARAMETER_GROUP_BODY) {
+                            continue;
+                        }
+                        $name = $param->getName();
+                        $val = $data->getCellValue($name, $rowNr);
+                        $val = $this->prepareParamValue($param, $val) ?? '';
+                        $formRow[$name] = $val;
+                    }
+                    $formRows[] = $formRow;
+                }
+                $str = http_build_query($formRows);
+                break;
+            // Urlencoded row
             case strcasecmp($contentType, MimeTypeDataType::URLENCODED) === 0:
-                foreach ($this->getParameters() as $param) {
+                foreach ($this->getParameters(null, $logbook) as $param) {
                     if ($param->getGroup($defaultGroup) !== self::PARAMETER_GROUP_BODY) {
                         continue;
                     }
@@ -683,7 +721,10 @@ class CallWebService extends AbstractAction implements iCallService
                     $str .= '&' . urlencode($name) . '=' . urlencode($val);
                 }
                 break;
+            default:
+                $logbook->addLine('Cannot generate body because no `content_type` specified. Can only generate body from parameters for `' . MimeTypeDataType::URLENCODED . '` and `' . MimeTypeDataType::JSON . '`');
         }
+        $logbook->addIndent(-1);
         return $str;
     }
 
@@ -801,35 +842,42 @@ class CallWebService extends AbstractAction implements iCallService
     {
         $input = $this->getInputDataSheet($task);
         $logbook = $this->getLogBook($task);
-        $logbook->setIndentActive(1);
+        $this->logbook = $logbook;
         
         $resultData = DataSheetFactory::createFromObject($this->getResultObject());
         $resultData->setAutoCount(false);
         
         $rowCnt = $input->countRows();
+        $requestCnt = $rowCnt;
         if ($rowCnt === 0 && $this->getInputRowsMin() === 0) {
-            $rowCnt = 1;
+            $requestCnt = 1;
         }
         if ($this->hasSeparateRequestsForEachRow() === false) {
-            $rowCnt = 1;
+            $requestCnt = 1;
         }
         
         // Make sure all required parameters are present in the data
-        $params = $this->getParameters();
-        $logbook->addLine('Found ' . count($params) . ' service parameters. Checking if input data has all required parameters');
-        
+        $logbook->addLine('Preparing input data fow webservice: ' . DataLogBook::buildTitleForData($input));
         $logbook->addIndent(+1);
+        $logbook->addLine('Looking for webservice parameters');
+        $params = $this->getParameters(null, $logbook);
+        $logbook->addLine('Checking if input data has all required parameters');
         $input = $this->getDataWithParams($input, $params, $logbook);  
         $logbook->addIndent(-1);
         
         $httpConnection = $this->getDataConnection();
 
         // Call the webservice for every row in the input data.
-        $logbook->addLine('Firing HTTP requests for ' . $rowCnt . ' input rows');
+        $logbook->addLine('Sending **' . $requestCnt . '** HTTP requests for **' . $rowCnt . '** input rows via connection `' . $httpConnection->getAliasWithNamespace() . '`');
         $logbook->addIndent(+1);
-        for ($i = 0; $i < $rowCnt; $i++) {
+        for ($i = 0; $i < $requestCnt; $i++) {
             $method = $this->buildMethod($input, $i);
-            $request = new Request($method, $this->buildUrl($input, $i, $method), $this->buildHeaders(), $this->buildBody($input, $i, $method));
+            if ($requestCnt === 1 && $rowCnt > 1) {
+                $body = $this->buildBody($input, $method, $logbook);
+            } else {
+                $body = $this->buildBody($input, $method, $logbook, $i);
+            }
+            $request = new Request($method, $this->buildUrl($input, $i, $method, $logbook), $this->buildHeaders(), $body);
             $query = new Psr7DataQuery($request);
             // Perform the query regularly via URL connector
             try {
@@ -887,6 +935,11 @@ class CallWebService extends AbstractAction implements iCallService
         } else {
             $conn = $this->getMetaObject()->getDataConnection();
         }
+        
+        if (! $conn instanceof HttpConnectionInterface) {
+            throw new ActionConfigurationError($this, 'Invalid data connection type for CallWebService action: expecting an HTTP connector, got ' . PhpClassDataType::findClassNameWithoutNamespace($conn));
+        }
+        
         // If changes to the connection config are needed, clone the connection before
         // applying them!
         if ($this->errorMessagePattern !== null || $this->errorCodePattern !== null) {
@@ -929,7 +982,7 @@ class CallWebService extends AbstractAction implements iCallService
      * @param string $method
      * @return string
      */
-    protected function buildUrl(DataSheetInterface $data, int $rowNr, string $method) : string
+    protected function buildUrl(DataSheetInterface $data, int $rowNr, string $method, ActionLogBook $logbook) : string
     {
         $url = $this->getUrl() ?? '';
         $params = '';
@@ -937,7 +990,7 @@ class CallWebService extends AbstractAction implements iCallService
         
         $urlPhValues = [];
         $defaultGroup = $this->getDefaultParameterGroup($method);
-        foreach ($this->getParameters() as $param) {
+        foreach ($this->getParameters(null, $logbook) as $param) {
             $group = $param->getGroup($defaultGroup);
             if ($group !== null && $group !== self::PARAMETER_GROUP_URL) {
                 continue;
@@ -1038,43 +1091,84 @@ class CallWebService extends AbstractAction implements iCallService
      *
      * @return ServiceParameterInterface[]
      */
-    public function getParameters(string $group = null) : array
+    public function getParameters(string $group = null, ActionLogBook $logbook = null) : array
     {
+        // Fill parameter cache 
         if ($this->parametersGeneratedFromPlaceholders === false) {
             $this->parametersGeneratedFromPlaceholders = true;
+            $logbook?->addIndent(+1);
             
-            $expclicitParams = [];
+            $expclicitParamGroups = [];
             $defaultGroup = $this->getDefaultParameterGroup($this->getMethod());
             foreach ($this->parameters as $param) {
-                $expclicitParams[$param->getName()] = $param->getGroup($defaultGroup);
+                $expclicitParamGroups[$param->getName()] = $param->getGroup($defaultGroup);
             }
+            $paramNames = empty($expclicitParamGroups) ? '' : ' `' . implode('`, `', array_keys($expclicitParamGroups)) . '`';
+            $logbook?->addLine('`parameters` defined in action explicitly - ' . count($expclicitParamGroups) . '.' . $paramNames);
             
             // Generate parameters from attributes - but only if there is no such parameter explicitly defined
             if ($this->willGenerateParametersFromAttributes()) {
+                $paramsFromAttributes = [];
                 foreach ($this->getAttributeGroupToGenerateParameters()->getAttributes() as $attr) {
                     $paramUxon = $this->findParameterUxonInAttributes($attr->getAliasWithRelationPath());
                     $name = $paramUxon->getProperty('name');
-                    if ($defaultGroup !== ($expclicitParams[$name] ?? null)) {
-                        $this->parameters[] = new ServiceParameter($this, $paramUxon);
+                    if ($defaultGroup !== ($expclicitParamGroups[$name] ?? null)) {
+                        $param = new ServiceParameter($this, $paramUxon);
+                        $paramsFromAttributes[] = $param->getName();
+                        $this->parameters[] = $param;
                     }
                 }
+                $paramNames = empty($paramsFromAttributes) ? '' : ' `' . implode('`, `', $paramsFromAttributes) . '`';
+                $logbook?->addLine('`parameters_for_all_attributes_from_group` - ' . count($paramsFromAttributes) . '.' . $paramNames . '.');
+            } else {
+                $logbook?->addLine('`parameters_for_all_attributes_from_group` - not set.');
             }
 
             // Generate parameters from template placeholders - but only if that parameter does not exist yet!
             $paramsFromPhs = [];
+            $paramsFromUrl = [];
+            $paramsFromBody = [];
             if (null !== $tpl = $this->getBody()) {
-                $paramsFromPhs = $this->findParametersInBody($tpl);
-            }
+                $paramsFromBody = $this->findParametersInBody($tpl);
+                $paramNames = empty($paramsFromBody) ? '' : ' `' . implode('`, `', array_keys($paramsFromBody)) . '`';
+                $logbook?->addLine('`body` placeholders - ' . count($paramsFromBody) . '.' . $paramNames . '.');
+            } 
             if (null !== $tpl = $this->getUrl()) {
-                $paramsFromPhs = array_merge($paramsFromPhs, $this->findParametersInUrl($tpl));
+                $paramsFromUrl = array_merge($paramsFromPhs, $this->findParametersInUrl($tpl));
+                $paramNames = empty($paramsFromUrl) ? '' : ' `' . implode('`, `', array_keys($paramsFromUrl)) . '`';
+                $logbook?->addLine('`url` placeholders - ' . count($paramsFromUrl) . '.' . $paramNames . '.');
             }
+            // Parameters from the URL and from the body will probably belong to different groups, so make sure to
+            // keep them all - even if they have the same name!
+            $paramsFromPhs = array_merge(array_values($paramsFromBody), array_values($paramsFromUrl));
+            $paramNamesIgnored = [];
             foreach($paramsFromPhs as $paramGenerated) {
-                if ($defaultGroup !== ($expclicitParams[$paramGenerated->getName()] ?? null)) {
+                if ($defaultGroup !== ($expclicitParamGroups[$paramGenerated->getName()] ?? null)) {
                     $this->parameters[] = $paramGenerated;
+                } else {
+                    $paramNamesIgnored[] = $paramGenerated->getName();
                 }
             }
+            if (! empty($paramNamesIgnored)) {
+                $paramNames = ' `' . implode('`, `', $paramNamesIgnored) . '`';
+                $logbook?->addLine('Ignoring ' . count($paramNamesIgnored) . ' parameters because they have a different group.' . $paramNames . '.');
+            }
+            $logbook?->addIndent(-1);
         }
-        return $this->parameters;
+        
+        // If a specific group is requested, filter the cache.
+        // Otherwise return it as-is.
+        if ($group !== null) {
+            $filtered = [];
+            foreach ($this->parameters as $param) {
+                if ($param->getGroup($group) === $group) {
+                    $filtered[] = $param;
+                }
+            }
+            return $filtered;
+        } else {
+            return $this->parameters;
+        }
     }
     
     /**
@@ -1097,7 +1191,8 @@ class CallWebService extends AbstractAction implements iCallService
                 if ($useAttributes && null !== $attrUxon = $this->findParameterUxonInAttributes($ph)) {
                     $paramUxon = $paramUxon->extend($attrUxon);
                 }
-                $params[] = new ServiceParameter($this, $paramUxon);
+                $param = new ServiceParameter($this, $paramUxon);
+                $params[$param->getName()] = $param;
             }
         }
         return $params;
@@ -1160,7 +1255,8 @@ class CallWebService extends AbstractAction implements iCallService
                 if ($useAttributes && $attrParamUxon = $this->findParameterUxonInAttributes($ph)) {
                     $uxon = $uxon->extend($attrParamUxon);
                 }
-                $params[] = new ServiceParameter($this, $paramUxon);
+                $param = new ServiceParameter($this, $paramUxon);
+                $params[$param->getName()] = $param;
             }
         }
         
@@ -1213,7 +1309,9 @@ class CallWebService extends AbstractAction implements iCallService
     }
 
     /**
-     * Set to TRUE to make parameters use the model of attributes with the same name
+     * Set to TRUE to make parameters defined for this action use the model of attributes with the same name
+     * 
+     * To make this work, the action will need to have some parameters - either set explicitly 
      * 
      * For example, if your webservice has an `id` parameter and the object of the action has a corresponding
      * attribute with a matching alias, you do not need to define the data type, default value, etc. for the
