@@ -70,7 +70,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "NAME": "OData 2.0 Connection",
             "DESCRIPTION": "",
-            "PROTOTYPE": "exface/UrlDataConnector/DataConnectors/OData2Connector.php",
+            "PROTOTYPE": "exface/urldataconnector/DataConnectors/OData2Connector.php",
             "UXON": {
                 "url": "",
                 "authentication": {
@@ -93,7 +93,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "NAME": "OData 4.0 Connection",
             "DESCRIPTION": "",
-            "PROTOTYPE": "exface/UrlDataConnector/DataConnectors/OData4Connector.php",
+            "PROTOTYPE": "exface/urldataconnector/DataConnectors/OData4Connector.php",
             "UXON": {
                 "url": "",
                 "authentication": {
@@ -116,7 +116,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "NAME": "Webservice with cookies",
             "DESCRIPTION": "By default only non-session cookies will be stored. Enable `use_cookie_sessions` additionally to store session cookies too. This will only work for logged in users though.",
-            "PROTOTYPE": "exface/UrlDataConnector/DataConnectors/HttpConnector.php",
+            "PROTOTYPE": "exface/urldataconnector/DataConnectors/HttpConnector.php",
             "UXON": {
                 "url": "",
                 "use_cookies": true,
@@ -136,7 +136,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "NAME": "Webservice with cache",
             "DESCRIPTION": "When caching is enabled, the cache-control HTTP headers will by used by default. You can explicitly ignore them via `cache_ignore_headers` to cache even those responses, that are marked as non-cacheable.",
-            "PROTOTYPE": "exface/UrlDataConnector/DataConnectors/HttpConnector.php",
+            "PROTOTYPE": "exface/urldataconnector/DataConnectors/HttpConnector.php",
             "UXON": {
                 "URL": "",
                 "cache_enabled": true,
@@ -157,7 +157,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "NAME": "Webservice with basic HTTP authentication",
             "DESCRIPTION": "URL + username and password",
-            "PROTOTYPE": "exface/UrlDataConnector/DataConnectors/HttpConnector.php",
+            "PROTOTYPE": "exface/urldataconnector/DataConnectors/HttpConnector.php",
             "UXON": {
                 "url": "",
                 "authentication": {
@@ -180,7 +180,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "NAME": "Fixed URL parameters for all requests",
             "DESCRIPTION": "Add `fixed_url_params` to append static parameter to every request",
-            "PROTOTYPE": "exface/UrlDataConnector/DataConnectors/HttpConnector.php",
+            "PROTOTYPE": "exface/urldataconnector/DataConnectors/HttpConnector.php",
             "UXON": {
                 "url": "",
                 "fixed_url_params": "&param1=value1&param2=value2"
@@ -199,7 +199,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "NAME": "Webservice with Swagger/OpenAPI",
             "DESCRIPTION": "The Swagger definition will allow to generate the metamodel via model builder",
-            "PROTOTYPE": "exface/UrlDataConnector/DataConnectors/HttpConnector.php",
+            "PROTOTYPE": "exface/urldataconnector/DataConnectors/HttpConnector.php",
             "UXON": {
                 "url": "",
                 "swagger_url": ""
@@ -218,7 +218,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "NAME": "Credentials for basic HTTP authentication",
             "DESCRIPTION": "Preset for a credential set for web services with basic HTTP authentication",
-            "PROTOTYPE": "exface/UrlDataConnector/DataConnectors/HttpConnector.php",
+            "PROTOTYPE": "exface/urldataconnector/DataConnectors/HttpConnector.php",
             "UXON": {
                 "authentication": {
                     "class": "\\exface\\UrlDataConnector\\DataConnectors\\Authentication\\HttpBasicAuth",

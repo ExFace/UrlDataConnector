@@ -1,5 +1,5 @@
 {
-    "name": "exface/UrlDataConnector",
+    "name": "exface/urldataconnector",
     "description": "Connector for web-based data sources like web services and web pages for the ExFace plattform",
     "type": "library",
     "license": [
@@ -14,9 +14,9 @@
         }
     ],
     "support": {
-        "source": "https://github.com/exface/UrlDataConnector",
-        "docs": "https://github.com/exface/UrlDataConnector/blob/master/Docs",
-        "issues": "https://github.com/exface/UrlDataConnector/issues"
+        "source": "https://github.com/exface/urldataconnector",
+        "docs": "https://github.com/exface/urldataconnector/blob/master/Docs",
+        "issues": "https://github.com/exface/urldataconnector/issues"
     },
     "require": {
         "exface/core": "^1.0",
