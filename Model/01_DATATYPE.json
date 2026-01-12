@@ -73,7 +73,7 @@
             "UID": "0x11eb81683be90d2e8168025041000001",
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "NAME": "OData deferred entry",
-            "PROTOTYPE": "exface/UrlDataConnector/DataTypes/ODataDeferredDataType.php",
+            "PROTOTYPE": "exface/urldataconnector/DataTypes/ODataDeferredDataType.php",
             "CONFIG_UXON": null,
             "VALIDATION_ERROR": null,
             "DEFAULT_DISPLAY_UXON": null,

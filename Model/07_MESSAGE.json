@@ -174,7 +174,7 @@
             "DESCRIPTION": "",
             "HINT": "Try to re-run the model builder for the objects at both ends of the association node",
             "TYPE": "ERROR",
-            "DOCS": "exface/UrlDataConnector/Docs/OData/The_metamodel_for_OData_2.0.md"
+            "DOCS": "exface/urldataconnector/Docs/OData/The_metamodel_for_OData_2.0.md"
         },
         {
             "_EXPORT_SUMMARY": "75C7YOQ Missing parameter for remote function call",

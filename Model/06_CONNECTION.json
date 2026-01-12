@@ -66,7 +66,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "TIME_ZONE": null,
             "LABEL": "Local file URI",
-            "CONNECTOR": "exface/UrlDataConnector/DataConnectors/FileUriConnector.php",
+            "CONNECTOR": "exface/urldataconnector/DataConnectors/FileUriConnector.php",
             "CONFIG": {
                 "hide_file_missing_error": true
             },
@@ -83,7 +83,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "TIME_ZONE": null,
             "LABEL": "Web-URL (readonly)",
-            "CONNECTOR": "exface/UrlDataConnector/DataConnectors/HttpConnector.php",
+            "CONNECTOR": "exface/urldataconnector/DataConnectors/HttpConnector.php",
             "CONFIG": null,
             "READONLY": 1,
             "ALIAS": "URL_READONLY"
@@ -98,7 +98,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "TIME_ZONE": null,
             "LABEL": "Web-URL (readonly, cached)",
-            "CONNECTOR": "exface/UrlDataConnector/DataConnectors/HttpConnector.php",
+            "CONNECTOR": "exface/urldataconnector/DataConnectors/HttpConnector.php",
             "CONFIG": {
                 "cache_lifetime_in_seconds": 60,
                 "cache_enabled": "true"
@@ -116,7 +116,7 @@
             "APP": "0x11e6951dda3ba520b48b847beb4a5184",
             "TIME_ZONE": "",
             "LABEL": "Metamodel URI Adapter",
-            "CONNECTOR": "exface/UrlDataConnector/DataConnectors/MetamodelUriConnector.php",
+            "CONNECTOR": "exface/urldataconnector/DataConnectors/MetamodelUriConnector.php",
             "CONFIG": null,
             "READONLY": 0,
             "ALIAS": "metamodel_uri_adapter"
