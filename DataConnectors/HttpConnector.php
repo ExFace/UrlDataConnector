@@ -1523,7 +1523,7 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
      * @param bool $trueOrFalse
      * @return HttpConnector
      */
-    protected function setDebug(bool $trueOrFalse) : HttpConnector
+    public function setDebug(bool $trueOrFalse) : HttpConnector
     {
         $this->debug = $trueOrFalse;
         return $this;
@@ -1553,7 +1553,7 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
      * @throws DataConnectionConfigurationError
      * @return HttpConnector
      */
-    protected function setDebugResponse(UxonObject $value) : HttpConnector
+    public function setDebugResponse(UxonObject $value) : HttpConnector
     {
         $this->debugResponse = $value;
         return $this;
