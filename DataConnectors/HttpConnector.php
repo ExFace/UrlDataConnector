@@ -911,9 +911,17 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
         }
         
         if ($exceptionThrown !== null) {
-            return strip_tags($exceptionThrown->getMessage());
+            $message = strip_tags($exceptionThrown->getMessage());
+        } else {
+            $message = $response->getReasonPhrase();
         }
-        return $response->getReasonPhrase();
+        
+        // For authentication errors, add the contents of the WWW-Authenticate header if present.
+        // See https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/WWW-Authenticate 
+        if ($response->getStatusCode() === 401 && $response->hasHeader('WWW-Authenticate')) {
+            $message = StringDataType::endSentence($message) . $response->getHeaderLine('WWW-Authenticate');
+        }
+        return $message;
     }
     
     /**
@@ -1515,7 +1523,7 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
      * @param bool $trueOrFalse
      * @return HttpConnector
      */
-    protected function setDebug(bool $trueOrFalse) : HttpConnector
+    public function setDebug(bool $trueOrFalse) : HttpConnector
     {
         $this->debug = $trueOrFalse;
         return $this;
@@ -1545,7 +1553,7 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
      * @throws DataConnectionConfigurationError
      * @return HttpConnector
      */
-    protected function setDebugResponse(UxonObject $value) : HttpConnector
+    public function setDebugResponse(UxonObject $value) : HttpConnector
     {
         $this->debugResponse = $value;
         return $this;

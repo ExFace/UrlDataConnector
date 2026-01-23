@@ -429,6 +429,9 @@ class CallWebService extends AbstractAction implements iCallService
     
     private $errorCodePattern = null;
     
+    private bool $debugFlag = false;
+    private ?UxonObject $debugResponseUxon = null;
+    
     /**
      *
      * {@inheritDoc}
@@ -954,6 +957,17 @@ class CallWebService extends AbstractAction implements iCallService
                 $conn->setErrorCodePattern($this->errorCodePattern);
             }
         }
+        
+        if ($this->isDebugMode()) {
+            if (! $conn instanceof HttpConnectionInterface) {
+                throw new ActionConfigurationError($this, 'Cannot use debug mode with other connections than HttpConnector!');
+            }
+            $conn->setDebug(true);
+            if ($this->getDebugResponse() !== null) {
+                $conn->setDebugResponse($this->getDebugResponse());
+            }
+        }
+        
         return $conn;
     }
     
@@ -1633,5 +1647,58 @@ class CallWebService extends AbstractAction implements iCallService
     protected function getAttributeGroupToGenerateParameters() : ?MetaAttributeGroupInterface
     {
         return $this->getMetaObject()->getAttributeGroup($this->parametersForAllAttrsFromGroup);
+    }
+
+    /**
+     * @return bool
+     */
+    protected function isDebugMode() : bool
+    {
+        return $this->debugFlag === true;
+    }
+
+    /**
+     * Set to TRUE or FALSE to enable or disable debug mode
+     *
+     * @uxon-property debug
+     * @uxon-type boolean
+     * @uxon-default false
+     *
+     * @param bool $trueOrFalse
+     * @return CallWebService
+     */
+    protected function setDebug(bool $trueOrFalse) : CallWebService
+    {
+        $this->debugFlag = $trueOrFalse;
+        return $this;
+    }
+
+    /**
+     *
+     * @return string|NULL
+     */
+    protected function getDebugResponse() : ?UxonObject
+    {
+        return $this->debugResponseUxon;
+    }
+
+    /**
+     * Specify a static response body to be used in debug mode instead of really querying the URL.
+     *
+     * The response body may either be a string or a UXON structure, that will then be automatically converted
+     * to a JSON string.
+     *
+     * @uxon-property debug_response
+     * @uxon-type object
+     * @uxon-template {"status": "200", "headers": {"Content-Type": "application/json"}, "body": ""}
+     * @uxon-default {"status": "200", "headers": {}, "body": ""}
+     *
+     * @param UxonObject $value
+     * @return CallWebService
+     */
+    protected function setDebugResponse(UxonObject $value) : CallWebService
+    {
+        $this->debugResponseUxon = $value;
+        return $this;
     }
 }
