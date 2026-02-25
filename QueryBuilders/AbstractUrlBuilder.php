@@ -881,6 +881,8 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
         $filterGroup = $filterGroup ?? $this->getFilters();
         foreach (StringDataType::findPlaceholders($url_string) as $ph) {
             $defaultValue = null;
+            // TODO #placeholder-modifiers switch to more generic StringDataType::stripPlaceholderModifiers()
+            // - but is it really enough to search for a single pipe? Can there be pipes in placeholders without modifiers?
             $phAlias = IfNullModifier::stripFilter($ph);
             if ($phAlias !== $ph) {
                 $defaultValue = IfNullModifier::findDefaultValue($ph);
