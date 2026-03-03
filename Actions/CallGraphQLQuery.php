@@ -3,9 +3,8 @@ namespace exface\UrlDataConnector\Actions;
 
 use exface\Core\CommonLogic\Debugger\LogBooks\ActionLogBook;
 use exface\Core\Interfaces\DataSheets\DataSheetInterface;
+use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
-use exface\Core\Factories\ResultFactory;
-use exface\Core\Factories\DataSheetFactory;
 use exface\Core\Interfaces\Actions\ServiceParameterInterface;
 use exface\Core\Exceptions\Actions\ActionInputMissingError;
 
@@ -99,17 +98,17 @@ class CallGraphQLQuery extends CallWebService
      * {@inheritDoc}
      * @see \exface\UrlDataConnector\Actions\CallWebService::parseResponse()
      */
-    protected function parseResponse(ResponseInterface $response, DataSheetInterface $resultData) : DataSheetInterface
+    protected function parseResponse(RequestInterface $request, ResponseInterface $response, DataSheetInterface $resultSheet) : DataSheetInterface
     {
         if ($response->getStatusCode() != 200) {
-            return $resultData->setFresh(true);
+            return $resultSheet->setFresh(true);
         }
         
         $body = $response->getBody()->__toString();
         $json = json_decode($body, true);        
-        $resultData->addRows($json['data']);
+        $resultSheet->addRows($json['data']);
         
-        return $resultData;
+        return $resultSheet;
     }
     
     /**
