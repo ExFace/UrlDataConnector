@@ -1,6 +1,7 @@
 <?php
 namespace exface\UrlDataConnector\ModelBuilders;
 
+use exface\Core\DataTypes\ArrayDataType;
 use exface\Core\Interfaces\DataSources\ModelBuilderInterface;
 use exface\Core\CommonLogic\ModelBuilders\AbstractModelBuilder;
 use exface\Core\Interfaces\AppInterface;
@@ -17,12 +18,8 @@ use exface\Core\DataTypes\IntegerDataType;
 use exface\Core\DataTypes\StringDataType;
 use exface\Core\CommonLogic\UxonObject;
 use exface\Core\Interfaces\DataTypes\DataTypeInterface;
-use exface\UrlDataConnector\Actions\CallOData2Operation;
 use exface\Core\Interfaces\Selectors\AliasSelectorInterface;
 use exface\UrlDataConnector\DataConnectors\GraphQLConnector;
-use exface\UrlDataConnector\Actions\CallGraphQLQuery;
-use exface\UrlDataConnector\Actions\CallGraphQLMutation;
-use exface\Core\Exceptions\ModelBuilders\ModelBuilderRuntimeError;
 use exface\Core\DataTypes\BooleanDataType;
 use exface\Core\DataTypes\DateDataType;
 use exface\Core\DataTypes\DateTimeDataType;
@@ -264,7 +261,7 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
         foreach ($attributeSheet->getRows() as $row) {
             $propName = $row['DATA_ADDRESS'];            
             if ($ref = $objectDef['properties'][$propName]['$ref']) {
-                $refComponent = StringDataType::substringAfter($ref, '#/' . $this->getSwaggerDefinitionsProperty() . '/');
+                $refComponent = StringDataType::substringAfter($ref, '#/' . $this->getSwaggerDefinitionsPath() . '/');
                 
                 $ds = DataSheetFactory::createFromObjectIdOrAlias($object->getWorkbench(), 'exface.Core.OBJECT');
                 $ds->getColumns()->addFromUidAttribute();
@@ -309,7 +306,7 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
         if (is_null($this->swagger)) {
             $query = new Psr7DataQuery(new Request('GET', $this->getDataConnection()->getSwaggerUrl(), ['Content-Type' => 'application/json']));
             $query = $this->getDataConnection()->query($query);
-            $this->swagger = json_decode($query->getResponse()->getBody(), true);
+            $this->swagger = json_decode($query->getResponse()->getBody()->__toString(), true);
         }
         return $this->swagger;
     }
@@ -320,7 +317,7 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
      */
     protected function getSwaggerVersion() : string
     {
-        return $this->getSwagger()['swagger'];
+        return $this->getSwagger()['swagger'] ?? $this->getSwagger()['openapi'];
     }
     
     /**
@@ -341,15 +338,19 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
     
     protected function getSwaggerDefinitions() : array
     {
-        return $this->getSwagger()[$this->getSwaggerDefinitionsProperty()] ?? [];
+        $defs = ArrayDataType::filterXPath($this->getSwagger(), $this->getSwaggerDefinitionsPath());
+        return $defs ?? [];
     }
     
-    protected function getSwaggerDefinitionsProperty() : string
+    protected function getSwaggerDefinitionsPath() : string
     {
-        if ($this->getSwaggerVersion() < 3) {
-            return 'definitions';
-        } else {
-            return 'components';
+        switch (true) {
+            case $this->getSwaggerVersion() < 3:
+                return 'definitions';
+            case StringDataType::startsWith($this->getSwaggerVersion(), '3.1'):
+                return 'components/schemas';
+            default:
+                return 'components';
         }
     }
     
@@ -383,7 +384,7 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
             if ($resp['schema'] 
                 && $resp['schema']['type'] === 'array'
                 && $resp['schema']['items'] 
-                && $resp['schema']['items']['$ref'] === "#/{$this->getSwaggerDefinitionsProperty()}/{$definitionName}"
+                && $resp['schema']['items']['$ref'] === "#/{$this->getSwaggerDefinitionsPath()}/{$definitionName}"
             ) {
                 $paths[] = array_merge(['path' => $url, 'method' => $method], $operation);
             }
@@ -417,7 +418,7 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
             }
             
             if ($resp['schema']
-                && $resp['schema']['$ref'] === "#/{$this->getSwaggerDefinitionsProperty()}/{$definitionName}"
+                && $resp['schema']['$ref'] === "#/{$this->getSwaggerDefinitionsPath()}/{$definitionName}"
             ) {
                 $paths[] = array_merge(['path' => $url, 'method' => $method], $operation);;
             }
@@ -449,7 +450,7 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
             }
             
             if ($param['schema']
-                && $param['schema']['$ref'] === "#/{$this->getSwaggerDefinitionsProperty()}/{$definitionName}"
+                && $param['schema']['$ref'] === "#/{$this->getSwaggerDefinitionsPath()}/{$definitionName}"
             ) {
                 $paths[] = array_merge(['path' => $url, 'method' => $method], $operation);
             }
@@ -485,7 +486,7 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
             }
             
             foreach ($parameters as $param) {
-                if ($param['schema'] && $param['schema']['$ref'] === "#/{$this->getSwaggerDefinitionsProperty()}/{$definitionName}") {
+                if ($param['schema'] && $param['schema']['$ref'] === "#/{$this->getSwaggerDefinitionsPath()}/{$definitionName}") {
                     $uidParamFound = false;
                     foreach ($parameters as $p) {
                         if ($p['name'] === $uidField) {
@@ -531,7 +532,7 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
             }
             
             if (($basePath !== null && StringDataType::startsWith($url, $basePath) && $uidField !== null && $param['name'] === $uidField)
-                || ($param['schema'] && $param['schema']['$ref'] === "#/{$this->getSwaggerDefinitionsProperty()}/{$definitionName}")
+                || ($param['schema'] && $param['schema']['$ref'] === "#/{$this->getSwaggerDefinitionsPath()}/{$definitionName}")
             ) {
                 $paths[] = array_merge(['path' => $url, 'method' => $method], $operation);;
             }
