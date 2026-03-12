@@ -2,7 +2,7 @@
 namespace exface\UrlDataConnector;
 
 use exface\Core\CommonLogic\DataQueries\AbstractDataQuery;
-use exface\UrlDataConnector\Interfaces\psr7DataQueryInterface;
+use exface\UrlDataConnector\Interfaces\Psr7DataQueryInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use GuzzleHttp\Psr7\Request;
@@ -12,7 +12,7 @@ use exface\Core\Widgets\DebugMessage;
 use exface\Core\DataTypes\BooleanDataType;
 use exface\Core\CommonLogic\Debugger\HttpMessageDebugger;
 
-class Psr7DataQuery extends AbstractDataQuery implements psr7DataQueryInterface
+class Psr7DataQuery extends AbstractDataQuery implements Psr7DataQueryInterface
 {
 
     private $request;
@@ -50,7 +50,7 @@ class Psr7DataQuery extends AbstractDataQuery implements psr7DataQueryInterface
 
     /**
      * {@inheritDoc}
-     * @see psr7DataQueryInterface::getRequest()
+     * @see Psr7DataQueryInterface::getRequest()
      */
     public function getRequest() : RequestInterface
     {
@@ -72,7 +72,7 @@ class Psr7DataQuery extends AbstractDataQuery implements psr7DataQueryInterface
 
     /**
      * {@inheritDoc}
-     * @see psr7DataQueryInterface::getResponse()
+     * @see Psr7DataQueryInterface::getResponse()
      */
     public function getResponse() : ?ResponseInterface
     {

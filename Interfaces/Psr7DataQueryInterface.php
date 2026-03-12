@@ -11,7 +11,7 @@ use Psr\Http\Message\ResponseInterface;
  * @author Andrej Kabachnik
  *        
  */
-interface psr7DataQueryInterface extends DataQueryInterface
+interface Psr7DataQueryInterface extends DataQueryInterface
 {
     /**
      * @return RequestInterface
