@@ -1267,11 +1267,11 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
     }
     
     /**
-     * 
+     * {@inheritDoc}
      * @throws DataConnectionConfigurationError
-     * @return HttpAuthenticationProviderInterface|NULL
+     * @see HttpConnectionInterface::getAuthProvider()
      */
-    protected function getAuthProvider() : ?HttpAuthenticationProviderInterface
+    public function getAuthProvider() : ?HttpAuthenticationProviderInterface
     {
         if ($this->authProvider === null) {
             $authConfig = $this->getAuthProviderConfig();
