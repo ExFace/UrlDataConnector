@@ -2,17 +2,17 @@
 namespace exface\UrlDataConnector;
 
 use exface\Core\CommonLogic\DataQueries\AbstractDataQuery;
+use exface\UrlDataConnector\Interfaces\Psr7DataQueryInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use GuzzleHttp\Psr7\Request;
 use Psr\Http\Message\UriInterface;
 use Psr\Http\Message\StreamInterface;
 use exface\Core\Widgets\DebugMessage;
-use exface\Core\CommonLogic\Workbench;
 use exface\Core\DataTypes\BooleanDataType;
-use exface\Core\CommonLogic\Debugger\HttpMessageDebugWidgetRenderer;
+use exface\Core\CommonLogic\Debugger\HttpMessageDebugger;
 
-class Psr7DataQuery extends AbstractDataQuery
+class Psr7DataQuery extends AbstractDataQuery implements Psr7DataQueryInterface
 {
 
     private $request;
@@ -49,10 +49,10 @@ class Psr7DataQuery extends AbstractDataQuery
     }
 
     /**
-     *
-     * @return \Psr\Http\Message\RequestInterface
+     * {@inheritDoc}
+     * @see Psr7DataQueryInterface::getRequest()
      */
-    public function getRequest()
+    public function getRequest() : RequestInterface
     {
         return $this->request;
     }
@@ -68,11 +68,13 @@ class Psr7DataQuery extends AbstractDataQuery
         return $this;
     }
 
+
+
     /**
-     *
-     * @return \Psr\Http\Message\ResponseInterface
+     * {@inheritDoc}
+     * @see Psr7DataQueryInterface::getResponse()
      */
-    public function getResponse()
+    public function getResponse() : ?ResponseInterface
     {
         return $this->response;
     }
@@ -96,7 +98,7 @@ class Psr7DataQuery extends AbstractDataQuery
     public function createDebugWidget(DebugMessage $debug_widget)
     {
         if (null !== $request = $this->getRequest()) {
-            $renderer = new HttpMessageDebugWidgetRenderer($request, $this->getResponse(), 'Data request', 'Data response');
+            $renderer = new HttpMessageDebugger($request, $this->getResponse(), 'Data request', 'Data response');
             $debug_widget = $renderer->createDebugWidget($debug_widget);
         }
         

@@ -5,12 +5,12 @@ use exface\Core\CommonLogic\QueryBuilder\AbstractQueryBuilder;
 use exface\Core\CommonLogic\QueryBuilder\QueryPartFilter;
 use exface\Core\CommonLogic\QueryBuilder\QueryPartSorter;
 use exface\Core\Templates\Modifiers\IfNullModifier;
+use exface\UrlDataConnector\Interfaces\Psr7QueryBuilderInterface;
 use exface\UrlDataConnector\Psr7DataQuery;
 use GuzzleHttp\Psr7\Request;
 use exface\Core\Exceptions\QueryBuilderException;
 use exface\Core\Interfaces\Model\MetaAttributeInterface;
 use exface\Core\Interfaces\Model\MetaObjectInterface;
-use Psr\Http\Message\RequestInterface;
 use exface\Core\CommonLogic\Model\Condition;
 use exface\Core\CommonLogic\QueryBuilder\QueryPartFilterGroup;
 use exface\Core\CommonLogic\Model\ConditionGroup;
@@ -22,6 +22,8 @@ use exface\Core\CommonLogic\DataQueries\DataQueryResultData;
 use exface\Core\DataTypes\ComparatorDataType;
 use exface\Core\Interfaces\Model\CompoundAttributeInterface;
 use exface\Core\CommonLogic\QueryBuilder\QueryPartAttribute;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\RequestInterface;
 
 /**
  * This is an abstract query builder for REST APIs.
@@ -71,7 +73,7 @@ use exface\Core\CommonLogic\QueryBuilder\QueryPartAttribute;
  * @author Andrej Kabachnik
  *        
  */
-abstract class AbstractUrlBuilder extends AbstractQueryBuilder
+abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7QueryBuilderInterface
 {
     // Data Address Properties (DAP)
     
@@ -881,6 +883,8 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
         $filterGroup = $filterGroup ?? $this->getFilters();
         foreach (StringDataType::findPlaceholders($url_string) as $ph) {
             $defaultValue = null;
+            // TODO #placeholder-modifiers switch to more generic StringDataType::stripPlaceholderModifiers()
+            // - but is it really enough to search for a single pipe? Can there be pipes in placeholders without modifiers?
             $phAlias = IfNullModifier::stripFilter($ph);
             if ($phAlias !== $ph) {
                 $defaultValue = IfNullModifier::findDefaultValue($ph);
@@ -1120,20 +1124,20 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
     protected abstract function findFieldInData($data_address, $data);
 
     /**
-     * Parse the response data into an array of the following form: 
+     * Parse the response data into an array of the following form:
      * [ 0 => ["field1" => "value1", "field2" => "value 2"], 1 => [...], ... ]
      *
-     * @param mixed $data            
+     * @param $parsed_data
+     * @param Psr7DataQuery $query
      * @return array
      */
     protected abstract function buildResultRows($parsed_data, Psr7DataQuery $query);
-    
+
     /**
      * Resolves placeholders in data addresses, that refer to parts of the HTTP request or response.
-     * 
+     *
      * @param array $dataRows
      * @param Psr7DataQuery $query
-     * @throws QueryBuilderException
      * @return array
      */
     protected function buildResultRowsResolvePlaceholders(array $dataRows, Psr7DataQuery $query) : array
@@ -1287,6 +1291,18 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder
         }
         
         return new DataQueryResultData($result_rows, count($result_rows), $hasMoreRows, $totalCnt);
+    }
+
+    /**
+     * {@inheritDoc}
+     * @see Psr7QueryBuilderInterface::readResponse()
+     */
+    public function readResponse(RequestInterface $request, ResponseInterface $response) : DataQueryResultDataInterface
+    {
+        $query = new Psr7DataQuery($request);
+        $query->setResponse($response);
+        $resultRows = $this->buildResultRows($this->parseResponse($query), $query);
+        return new DataQueryResultData($resultRows, count($resultRows));
     }
     
     /**

@@ -135,9 +135,9 @@ class XmlUrlBuilder extends AbstractUrlBuilder
      * {@inheritDoc}
      * @see \exface\UrlDataConnector\QueryBuilders\AbstractUrlBuilder::parseResponse()
      */
-    protected function parseResponse(ResponseInterface $response)
+    protected function parseResponse(Psr7DataQuery $query)
     {
-        return new \SimpleXMLElement($response->getBody()->getContents());
+        return new \SimpleXMLElement($query->getResponse()->getBody()->getContents());
     }
     
     protected function findFieldInData($data_address, $data)

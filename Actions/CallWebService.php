@@ -20,6 +20,7 @@ use exface\Core\Factories\DataSheetFactory;
 use exface\Core\Factories\DataSourceFactory;
 use exface\Core\Factories\ExpressionFactory;
 use exface\Core\Factories\FormulaFactory;
+use exface\Core\Factories\QueryBuilderFactory;
 use exface\Core\Factories\ResultFactory;
 use exface\Core\Interfaces\Actions\iCallService;
 use exface\Core\Interfaces\Actions\ServiceParameterInterface;
@@ -39,8 +40,10 @@ use exface\Core\Templates\Placeholders\PlaceholderGroup;
 use exface\Core\Templates\Placeholders\TranslationPlaceholders;
 use exface\UrlDataConnector\DataConnectors\HttpConnector;
 use exface\UrlDataConnector\Interfaces\HttpConnectionInterface;
+use exface\UrlDataConnector\Interfaces\Psr7QueryBuilderInterface;
 use exface\UrlDataConnector\Psr7DataQuery;
 use GuzzleHttp\Psr7\Request;
+use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 
 /**
@@ -146,9 +149,11 @@ use Psr\Http\Message\ResponseInterface;
  * 
  * ## Success messages and action results
  * 
- * The result of `CallWebservice` consists of a messsage and a data sheet. The data sheet is based
- * on the actions object and will be empty by default. However, more specialized actions like
- * `CallOData2Operation` may also yield meaningful data.
+ * The result of `CallWebservice` consists of a message and a data sheet. By default, both are pretty empty, but 
+ * you can configure a lot of option to extract messages and data from the web service response. Specialized
+ * versions of the action like `CallOData2Operation` may also yield meaningful messages and data by themselves.
+ * 
+ * ### Result messages
  * 
  * In the most generic case, you can use the following action properties to extract a result message
  * from the HTTP response:
@@ -158,12 +163,19 @@ use Psr\Http\Message\ResponseInterface;
  * - `result_message_text` - a text or a static formula (e.g. `=TRANSLATE()`) to be
  * displayed if no errors occur. 
  * - If `result_message_text` and `result_message_pattern` are both specified, the static
- * text will be prepended to the extracted result. This is usefull for web services, that
+ * text will be prepended to the extracted result. This is useful for web services, that
  * respond with pure data - e.g. an importer serves, that returns the number of items imported.
+ * 
+ * ### Result data
+ * 
+ * The result data sheet is based on the actions object and will be empty by default. However, if the action is
+ * based on an object with an HTTP compatible query builder, you can list attributes of that object to be read
+ * from the response in `result_data_columns`. The object will use its query builder (e.g. `JsonUrlBuilder`)
+ * to parse the response and extract data - just like it would do for regular GET or POST requests.
  * 
  * ## Error messages
  * 
- * Similarly, you can make make the action look for error messages in the HTTP response
+ * Similarly, you can make the action look for error messages in the HTTP response
  * if the web service produces informative.
  * 
  * - `error_message_pattern` - a regular expression to find the error message (this will
@@ -424,9 +436,8 @@ class CallWebService extends AbstractAction implements iCallService
      * @var string|NULL
      */
     private $resultMessagePattern = null;
-    
+    private array $resultExpressionsToRead = [];
     private $errorMessagePattern = null;
-    
     private $errorCodePattern = null;
     
     private bool $debugFlag = false;
@@ -847,8 +858,8 @@ class CallWebService extends AbstractAction implements iCallService
         $logbook = $this->getLogBook($task);
         $this->logbook = $logbook;
         
-        $resultData = DataSheetFactory::createFromObject($this->getResultObject());
-        $resultData->setAutoCount(false);
+        $resultSheet = DataSheetFactory::createFromObject($this->getResultObject());
+        $resultSheet->setAutoCount(false);
         
         $rowCnt = $input->countRows();
         $requestCnt = $rowCnt;
@@ -888,40 +899,46 @@ class CallWebService extends AbstractAction implements iCallService
             } catch (\Throwable $e) {
                 throw new ActionRuntimeError($this, 'Error in remote web service call #' . ($i+1) . ': ' . $e->getMessage(), null, $e);
             }
-            $resultCntPrev = $resultData->countRows();
-            $resultData = $this->parseResponse($response, $resultData);
-            $logbook->addLine('Request ' . ($i+1) . ' returned ' . ($resultData->countRows() - $resultCntPrev) . ' data rows');
+            $resultCntPrev = $resultSheet->countRows();
+            $resultSheet = $this->parseResponse($request, $response, $resultSheet);
+            $logbook->addLine('Request ' . ($i+1) . ' returned ' . ($resultSheet->countRows() - $resultCntPrev) . ' data rows');
         }
         $logbook->addIndent(-1);
-        $resultData->setCounterForRowsInDataSource($resultData->countRows());
+        $resultSheet->setCounterForRowsInDataSource($resultSheet->countRows());
         
         // If the input and the result are based on the same meta object, we can (and should!)
         // apply filters and sorters of the input to the result. Indeed, having the same object
         // merely means, we need to fill the sheet with data, which, of course, should adhere
         // to its settings.
-        if ($input->getMetaObject()->is($resultData->getMetaObject())) {
+        if ($input->getMetaObject()->is($resultSheet->getMetaObject())) {
             $logbook->addLine('Filters and sorters will be applied to result data');
             if ($input->getFilters()->isEmpty(true) === false) {
-                $resultData = $resultData->extract($input->getFilters());
+                $resultSheet = $resultSheet->extract($input->getFilters());
             }
             if ($input->hasSorters() === true) {
-                $resultData->sort($input->getSorters());
+                $resultSheet->sort($input->getSorters());
             }
         } else {
-            $logbook->addLine('Filters and sorters will NOT be applied to result data because input and result are based on different meta objects: ' . $input->getMetaObject()->__toString() . ' vs ' . $resultData->getMetaObject()->__toString());
+            $logbook->addLine('Filters and sorters will NOT be applied to result data because input and result are based on different meta objects: ' . $input->getMetaObject()->__toString() . ' vs ' . $resultSheet->getMetaObject()->__toString());
+        }
+
+        $resultText = $this->getResultMessageText();
+        $resultTextPattern = $this->getResultMessagePattern();
+        switch (true) {
+            case $resultText && $resultTextPattern:
+                $respMessage = $this->getResultMessageText() . $this->getMessageFromResponse($response);
+                break;
+            case $resultText:
+                $respMessage = $resultText;
+                break;
+            case $resultTextPattern:
+                $respMessage = $this->getMessageFromResponse($response);
+                break;
+            default:   
+                $respMessage = $this->getWorkbench()->getApp('exface.UrlDataConnector')->getTranslator()->translate('ACTION.CALLWEBSERVICE.DONE');;
         }
         
-        if ($this->getResultMessageText() && $this->getResultMessagePattern()) {
-            $respMessage = $this->getResultMessageText() . $this->getMessageFromResponse($response);
-        } else {
-            $respMessage = $this->getResultMessageText() ?? $this->getMessageFromResponse($response);
-        }
-        
-        if ($respMessage === null || $respMessage === '') {
-            $respMessage = $this->getWorkbench()->getApp('exface.UrlDataConnector')->getTranslator()->translate('ACTION.CALLWEBSERVICE.DONE');
-        }
-        
-        return ResultFactory::createDataResult($task, $resultData, $respMessage);
+        return ResultFactory::createDataResult($task, $resultSheet, $respMessage);
     }
     
     /**
@@ -1400,16 +1417,50 @@ class CallWebService extends AbstractAction implements iCallService
     {
         return $this->getUrl();
     }
-    
+
     /**
-     * 
+     *
+     * @param RequestInterface $request
      * @param ResponseInterface $response
-     * @param DataSheetInterface $resultData
+     * @param DataSheetInterface $resultSheet
      * @return DataSheetInterface
      */
-    protected function parseResponse(ResponseInterface $response, DataSheetInterface $resultData) : DataSheetInterface
+    protected function parseResponse(RequestInterface $request, ResponseInterface $response, DataSheetInterface $resultSheet) : DataSheetInterface
     {
-        return $resultData;
+        $requiredCols = $this->getResultExpressionsToRead();
+        $resultObj = $resultSheet->getMetaObject();
+        if (! empty($requiredCols) && $resultObj->hasDataSource()) {
+            $queryBuilder = QueryBuilderFactory::createForObject($resultObj);
+            if (! $queryBuilder instanceof Psr7QueryBuilderInterface) {
+                throw new ActionConfigurationError($this, 'Cannot parse HTTP response to fill `result_data_columns` for object ' . $resultObj->__toString() . ': the query builder of the object is not supported!');
+            }
+            $calculatedCols = [];
+            foreach ($requiredCols as $exprString) {
+                $expr = ExpressionFactory::createForObject($resultObj, $exprString);
+                switch (true) {
+                    case $expr->isMetaAttribute():
+                        if (! $col = $resultSheet->getColumns()->getByExpression($exprString)) {
+                            $col = $resultSheet->getColumns()->addFromExpression($exprString);
+                        }
+                        $queryBuilder->addAttribute($exprString, $col->getName());
+                        break;
+                    case $expr->isFormula():
+                        if (! $col = $resultSheet->getColumns()->getByExpression($expr)) {
+                            $col = $resultSheet->getColumns()->addFromExpression($expr);
+                        }
+                        $calculatedCols[] = $col;
+                        break;
+                    default:
+                        throw new ActionConfigurationError($this, 'Expression `' . $exprString . '` cannot be read from web serivce response: only attribute aliases, formulas and scalar values allowed!');
+                }
+            }
+            foreach ($calculatedCols as $col) {
+                $col->setValuesByExpression($col->getExpressionObj(), false);
+            }
+            $queryResult = $queryBuilder->readResponse($request, $response);
+            $resultSheet->addRows($queryResult->getResultRows(), false, false);
+        }
+        return $resultSheet;
     }
     
     /**
@@ -1701,4 +1752,33 @@ class CallWebService extends AbstractAction implements iCallService
         $this->debugResponseUxon = $value;
         return $this;
     }
+
+    /**
+     * List of expressions to read from the response of the web service.
+     * 
+     * Using this property you can tell the action to extract specific columns from the response of the web service
+     * if the action is based on an object with an HTTP query builder. The object will use that query builder 
+     * (e.g. `JsonUrlBuilder`) to parse the response and extract data - just like it would do for regular GET or 
+     * POST requests.
+     * 
+     * The values in the column list can be attribute aliases or formulas.
+     * 
+     * @uxon-property result_data_columns
+     * @uxon-type metamodel:attribute[]
+     * @uxon-template [""]
+     * 
+     * @param UxonObject $arrayOfExpressions
+     * @return $this
+     */
+    public function setResultDataColumns(UxonObject $arrayOfExpressions) : CallWebService
+    {
+        $this->resultExpressionsToRead = $arrayOfExpressions->toArray();
+        return $this;
+    }
+    
+    protected function getResultExpressionsToRead() : array
+    {
+        return $this->resultExpressionsToRead;
+    }
+    
 }
