@@ -75,4 +75,11 @@ interface HttpConnectionInterface extends UrlConnectionInterface
      * @param string $fixed_params
      */
     public function setFixedUrlParams(string $fixed_params);
+
+    /**
+     * Returns the authentication provider used for this connection, if any.
+     * 
+     * @return HttpAuthenticationProviderInterface|NULL
+     */
+    public function getAuthProvider() : ?HttpAuthenticationProviderInterface;
 }
