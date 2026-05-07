@@ -1284,7 +1284,7 @@ class CallWebService extends AbstractAction implements iCallService
                     "group" => self::PARAMETER_GROUP_BODY
                 ]);
                 if ($useAttributes && $attrParamUxon = $this->findParameterUxonInAttributes($ph)) {
-                    $uxon = $uxon->extend($attrParamUxon);
+                    $uxon = $attrParamUxon;
                 }
                 $param = new ServiceParameter($this, $paramUxon);
                 $params[$param->getName()] = $param;
