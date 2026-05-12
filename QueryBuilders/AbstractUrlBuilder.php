@@ -226,7 +226,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
     /**
      * HTTP method for read requests (GET by default)
      * 
-     * @uxon-property create_request_method
+     * @uxon-property read_request_method
      * @uxon-target object
      * @uxon-type string
      * @uxon-default GET
@@ -606,7 +606,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
             $query_string .= (strpos($query_string, '?') !== false ? '&' : '?') . $params;
         }
         
-        return new Request('GET', $query_string, $this->getHttpHeaders(self::OPERATION_READ));
+        return new Request($this->getHttpMethod(self::OPERATION_READ), $query_string, $this->getHttpHeaders(self::OPERATION_READ));
     }
     
     /**
