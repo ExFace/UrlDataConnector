@@ -512,7 +512,7 @@ class JsonUrlBuilder extends AbstractUrlBuilder
                 $cnt++;
             } else {
                 foreach ($uids as $uid) {
-                    $url = StringDataType::replacePlaceholders($urlTpl, [$uidFilter->getAlias() => $this->buildUrlFilterValue($uidFilter, $uid)]);
+                    $url = StringDataType::replacePlaceholders($urlTpl, [$uidFilter->getAlias() => $this->buildUrlPlaceholderValue($uidFilter, $uid)]);
                     $request = new Request($method, $url);
                     $data_connection->query(new Psr7DataQuery($request));
                     $cnt++;

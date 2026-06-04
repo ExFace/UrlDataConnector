@@ -226,7 +226,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
     /**
      * HTTP method for read requests (GET by default)
      * 
-     * @uxon-property create_request_method
+     * @uxon-property read_request_method
      * @uxon-target object
      * @uxon-type string
      * @uxon-default GET
@@ -606,7 +606,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
             $query_string .= (strpos($query_string, '?') !== false ? '&' : '?') . $params;
         }
         
-        return new Request('GET', $query_string, $this->getHttpHeaders(self::OPERATION_READ));
+        return new Request($this->getHttpMethod(self::OPERATION_READ), $query_string, $this->getHttpHeaders(self::OPERATION_READ));
     }
     
     /**
@@ -896,7 +896,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
                     if ($this->getRequestSplitFilter() === $ph_filter && $ph_filter->getComparator() == ComparatorDataType::IN) {
                         $ph_value = explode($ph_filter->getValueListDelimiter(), $ph_filter->getCompareValue())[0];
                     } else {
-                        $ph_value = $this->buildUrlFilterValue($ph_filter);
+                        $ph_value = $this->buildUrlPlaceholderValue($ph_filter);
                     }
                 } else {
                     $ph_value = $defaultValue;
@@ -979,6 +979,28 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
         }
         
         return $filter;
+    }
+
+    /**
+     * Returns a string representing the query part's value, that is usable in a filter expression.
+     *
+     * @param QueryPartFilter $qpart
+     * @param string $preformattedValue
+     * @return string
+     */
+    protected function buildUrlPlaceholderValue(QueryPartFilter $qpart, string $preformattedValue = null)
+    {
+        if ($preformattedValue !== null) {
+            $value = $preformattedValue;
+        } else {
+            $value = $qpart->getCompareValue();
+            try {
+                $value = $qpart->getDataType()->parse($value);
+            } catch (\Throwable $e) {
+                throw new QueryBuilderException('Cannot fill URL placeholder for "' . $qpart->getCondition()->toString() . '" - invalid data type!', null, $e);
+            }
+        }
+        return $value;
     }
     
     /**
