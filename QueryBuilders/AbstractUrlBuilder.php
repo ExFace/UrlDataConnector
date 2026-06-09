@@ -1249,7 +1249,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
             }
             
             // Apply postprocessing options like `response_group_by_attribute_alias`
-            $result_rows = $this->applyPostprocessing($result_rows);
+            $result_rows = $this->readApplyPostprocessing($result_rows, $data, $data_connection);
             
             // Make more requests if we have multiple values for split filters
             // IDEA probably better to create separate query builders here rather than set
@@ -1270,7 +1270,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
                     if ($data = $this->parseResponse($subquery)) {
                         $totalCnt = $totalCnt + $this->findRowCounter($data, $query);
                         $subquery_rows = $this->buildResultRows($data, $subquery);
-                        $subquery_rows = $this->applyPostprocessing($subquery_rows);
+                        $subquery_rows = $this->readApplyPostprocessing($subquery_rows);
                         $result_rows = array_merge($result_rows, $subquery_rows);
                     }
                 }
@@ -1369,12 +1369,23 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
     }
 
     /**
+     * Do any format-specific row logic to ensure the data has the correct structure
      * 
+     * This method is called after the original request was parsed, but before any in-memory filtering, sorting, etc.
+     * happens. However, if an extra data row was added to detect pagination, it will already be removed form
+     * $result_rows at this point!
+     * 
+     * This method receives the original response and the HTTP connection in order to allow loading additional data
+     * from links in the response.
+     *
      * @param array $result_rows
+     * @param $parsedResponse
+     * @param DataConnectionInterface $connection
      * @return array
      */
-    protected function applyPostprocessing(array $result_rows) : array
+    protected function readApplyPostprocessing(array $result_rows, $parsedResponse, DataConnectionInterface $connection) : array
     {
+        // Handle data address property `response_group_by_attribute_alias`
         if ($group_attribute_alias = $this->getMainObject()->getDataAddressProperty(static::DAP_RESPONSE_GROUP_BY_ATTRIBUTE_ALIAS)) {
             if ($this->getMainObject()->getDataAddressProperty(static::DAP_RESPONSE_GROUP_USE_ONLY_FIRST)) {
                 $qpart = $this->getAttribute($group_attribute_alias);
