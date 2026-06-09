@@ -2,6 +2,7 @@
 namespace exface\UrlDataConnector\QueryBuilders;
 
 use exface\Core\CommonLogic\QueryBuilder\QueryPartFilter;
+use exface\Core\DataTypes\BooleanDataType;
 use exface\Core\DataTypes\NumberDataType;
 use exface\Core\Interfaces\DataSources\DataConnectionInterface;
 use exface\Core\Interfaces\Model\MetaObjectInterface;
@@ -30,6 +31,17 @@ use GuzzleHttp\Psr7\Request;
  */
 class OData4JsonUrlBuilder extends OData2JsonUrlBuilder
 {
+
+
+    /**
+     * Set to FALSE to exclude this attribute from the OData $select URL parameter
+     *
+     * @uxon-property odata_include_in_$select
+     * @uxon-target attribute
+     * @uxon-type boolean
+     */
+    const DAP_ODATA_INCLUDE_IN_SELECT = 'odata_include_in_$select';
+    
     /**
      * 
      * {@inheritDoc}
@@ -186,5 +198,35 @@ class OData4JsonUrlBuilder extends OData2JsonUrlBuilder
         }
         
         return parent::buildUrlFilterValue($qpart);
+    }
+
+
+
+    /**
+     * In OData4 we include the $select URL parameter by default for property-bound attributes
+     * 
+     * @see OData2JsonUrlBuilder::buildUrlParamSelect()
+     */
+    protected function buildUrlParamSelect(array $qparts) : string
+    {
+        $props = [];
+        foreach ($qparts as $qpart) {
+            $addr = $qpart->getDataAddress();
+            if (! $addr) {
+                continue;
+            }
+            $selectProp = $qpart->getDataAddressProperty(static::DAP_ODATA_INCLUDE_IN_SELECT);
+            if ($selectProp !== null) {
+                $selectProp = BooleanDataType::cast($selectProp) === false;
+            }
+            if ($selectProp === false) {
+                continue;
+            }
+            if ($selectProp !== true && ! $qpart->getDataAddressProperty(static::DAP_ODATA_TYPE)) {
+                continue;
+            }
+            $props[] = $addr;
+        }
+        return empty($props) ? '' : '$select=' . implode(',', $props) . '';
     }
 }
