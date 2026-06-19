@@ -14,7 +14,19 @@ use GuzzleHttp\Psr7\Request;
  * This is a query builder for JSON-based oData 4.0 APIs.
  * 
  * See the `AbstractUrlBuilder` and `OData2JsonUrlBuilder` for information about available 
- * data address properties.
+ * data address properties. 
+ * 
+ * The following chapter describes the OData4 logic and options compared to OData2 and generic JSON builders.
+ * 
+ * ## $select URL parameter
+ * 
+ * The OData4 query builder will automatically add a `$select` URL parameter for all attributes, that
+ * - have a data address
+ * - have a `odata_type` data address property (this makes sure they actually are OData properties)
+ * 
+ * You can explicitly control, if an attribute will be included in the `$select` or not via `odata_$select` data
+ * address property: set it to TRUE to force an attribute in the `$select` regardless of other settings or to
+ * FALSE to exclude it.
  * 
  * ## Pagination
  * 
