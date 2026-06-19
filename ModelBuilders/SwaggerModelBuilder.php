@@ -2,6 +2,7 @@
 namespace exface\UrlDataConnector\ModelBuilders;
 
 use exface\Core\DataTypes\ArrayDataType;
+use exface\Core\DataTypes\RegularExpressionDataType;
 use exface\Core\Interfaces\DataSources\ModelBuilderInterface;
 use exface\Core\CommonLogic\ModelBuilders\AbstractModelBuilder;
 use exface\Core\Interfaces\AppInterface;
@@ -347,6 +348,7 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
         switch (true) {
             case $this->getSwaggerVersion() < 3:
                 return 'definitions';
+            case StringDataType::startsWith($this->getSwaggerVersion(), '3.0'):
             case StringDataType::startsWith($this->getSwaggerVersion(), '3.1'):
                 return 'components/schemas';
             default:
@@ -562,7 +564,12 @@ class SwaggerModelBuilder extends AbstractModelBuilder implements ModelBuilderIn
             // Check name pattern against definition name and future data address
             $readPath = $this->getSwaggerPathToRead($key) ?? [];
             if ($namePattern) {
-                if (preg_match($namePattern, $key) !== 1) {
+                if (RegularExpressionDataType::isRegex($namePattern)) {
+                    $patternMatched = preg_match($namePattern, $key) === 1;
+                } else {
+                    $patternMatched = strcasecmp($namePattern, $key) === 0;
+                }
+                if (! $patternMatched) {
                     if (! $readPath['path'] || preg_match($namePattern, $readPath['path']) !== 1) {
                         continue;
                     }
