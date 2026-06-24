@@ -1875,6 +1875,6 @@ class CallWebService extends AbstractAction implements iCallService
         if ($this->resultDataSheetUxon !== null) {
             return DataSheetFactory::createFromUxon($this->getWorkbench(), $this->resultDataSheetUxon);
         }
-        return DataSheetFactory::createForObject($this->getResultObject());
+        return DataSheetFactory::createFromObject($this->getResultObject());
     }
 }
