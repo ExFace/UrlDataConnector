@@ -1466,7 +1466,6 @@ class CallWebService extends AbstractAction implements iCallService
             if (! $queryBuilder instanceof Psr7QueryBuilderInterface) {
                 throw new ActionConfigurationError($this, 'Cannot parse HTTP response to fill `result_data_columns` for object ' . $resultObj->__toString() . ': the query builder of the object is not supported!');
             }
-            $calculatedCols = [];
             $relatedCollector = new DataCollector($resultObj);
             foreach ($requiredCols->getAll() as $col) {
                 $expr = $col->getExpressionObj();
@@ -1482,7 +1481,7 @@ class CallWebService extends AbstractAction implements iCallService
                         $queryBuilder->addAttribute($expr->__toString(), $col->getName());
                         break;
                     case $expr->isFormula():
-                        $calculatedCols[] = $col;
+                        $relatedCollector->addExpression($expr);
                         break;
                     default:
                         throw new ActionConfigurationError($this, 'Expression `' . $expr->__toString() . '` cannot be read from web serivce response: only attribute aliases, formulas and scalar values allowed!');
@@ -1490,9 +1489,11 @@ class CallWebService extends AbstractAction implements iCallService
             }
             $queryResult = $queryBuilder->readResponse($request, $response);
             $resultSheet->addRows($queryResult->getResultRows(), false, false);
-            foreach ($calculatedCols as $col) {
-                $col->setValuesByExpression($col->getExpressionObj(), false);
-            }
+
+            // Get related data if needed
+            // TODO move this outside of this method to make it easy to use for overriding classes like CallOData2Operation
+            // TODO also make sure the collector is only run once for the entire result sheet. Currently it will run
+            // after every web service call.
             if (! $relatedCollector->isEmpty()) {
                 $relatedCollector->enrich($resultSheet);
             }
