@@ -4,6 +4,7 @@ namespace exface\UrlDataConnector\Actions;
 use exface\Core\CommonLogic\AbstractAction;
 use exface\Core\CommonLogic\Actions\ServiceParameter;
 use exface\Core\CommonLogic\Constants\Icons;
+use exface\Core\CommonLogic\DataSheets\DataCollector;
 use exface\Core\CommonLogic\Debugger\LogBooks\ActionLogBook;
 use exface\Core\CommonLogic\Debugger\LogBooks\DataLogBook;
 use exface\Core\CommonLogic\Model\Expression;
@@ -173,6 +174,37 @@ use Psr\Http\Message\ResponseInterface;
  * from the response in `result_data_columns`. The object will use its query builder (e.g. `JsonUrlBuilder`)
  * to parse the response and extract data - just like it would do for regular GET or POST requests.
  * 
+ * Often narrow-scoped web services (e.g. to calculate something) have fixed input and output formats. These
+ * can be modeled as separate metaobject, that are neither readable nor writable because the workbench cannot
+ * use its regular read or write logic on them. The input object should then get an action describing the web
+ * service and that action should have a `result_data_sheet` transforming its response into usable data.
+ * This way, input and output of the service will be clearly visible in the model and easily usable in widgets
+ * and other actions.
+ *
+ *  ```
+ *  {
+ *   "alias": "exface.UrlDataConnector.CallWebService",
+ *   "data_source_alias": "my.App.web_api",
+ *   "url": "api/v1/carrier-routes/search",
+ *   "content_type": "application/json",
+ *   "method": "POST",
+ *   "parameters_use_attributes": true,
+ *   "parameters_for_all_attributes_from_group": "~ALL",
+ *   "result_message_pattern": "/\"items\":\\s*(?<items>\\[[\\s\\S]*\\])/",
+ *   "error_message_pattern": "/\"title\":\"([^\"]*)\"/",
+ *   "input_object_alias": "my.App.CarrierRouteSearchCommand",
+ *   "result_data_sheet": {
+ *       "object_alias": "my.App.CarrierRouteSearchResponse",
+ *       "columns": [
+ *           {"attribute_alias": "rank"},
+ *           {"attribute_alias": "carrierId__LABEL"},
+ *           {"attribute_alias": "basePrice"}
+ *       ]
+ *   }
+ *  }
+ *
+ *  ```
+ * 
  * ## Error messages
  * 
  * Similarly, you can make the action look for error messages in the HTTP response
@@ -205,7 +237,7 @@ use Psr\Http\Message\ResponseInterface;
  * 
  * The `result_message_pattern` will be used to extract the success message from 
  * the response body (i.e. "Everything OK"), that will be shown to the user once 
- * the service responds.
+ * the service responses.
  * 
  * ### GET-request with typed and optional parameters
  * 
@@ -436,7 +468,7 @@ class CallWebService extends AbstractAction implements iCallService
      * @var string|NULL
      */
     private $resultMessagePattern = null;
-    private array $resultExpressionsToRead = [];
+    private ?UxonObject $resultDataSheetUxon = null;
     private $errorMessagePattern = null;
     private $errorCodePattern = null;
     
@@ -858,7 +890,7 @@ class CallWebService extends AbstractAction implements iCallService
         $logbook = $this->getLogBook($task);
         $this->logbook = $logbook;
         
-        $resultSheet = DataSheetFactory::createFromObject($this->getResultObject());
+        $resultSheet = $this->getResultDataSheet();
         $resultSheet->setAutoCount(false);
         
         $rowCnt = $input->countRows();
@@ -1427,38 +1459,43 @@ class CallWebService extends AbstractAction implements iCallService
      */
     protected function parseResponse(RequestInterface $request, ResponseInterface $response, DataSheetInterface $resultSheet) : DataSheetInterface
     {
-        $requiredCols = $this->getResultExpressionsToRead();
         $resultObj = $resultSheet->getMetaObject();
-        if (! empty($requiredCols) && $resultObj->hasDataSource()) {
+        $requiredCols = $resultSheet->getColumns();
+        if (! $requiredCols->isEmpty() && $resultObj->hasDataSource()) {
             $queryBuilder = QueryBuilderFactory::createForObject($resultObj);
             if (! $queryBuilder instanceof Psr7QueryBuilderInterface) {
                 throw new ActionConfigurationError($this, 'Cannot parse HTTP response to fill `result_data_columns` for object ' . $resultObj->__toString() . ': the query builder of the object is not supported!');
             }
             $calculatedCols = [];
-            foreach ($requiredCols as $exprString) {
-                $expr = ExpressionFactory::createForObject($resultObj, $exprString);
+            $relatedCollector = new DataCollector($resultObj);
+            foreach ($requiredCols->getAll() as $col) {
+                $expr = $col->getExpressionObj();
                 switch (true) {
+                    case $expr->isMetaAttribute() && $expr->getAttribute()->isRelated():
+                        $foreignKeyAlias = $expr->getAttribute()->getRelationPath()->getRelationFirst()->getLeftKeyAttribute()->getAlias();
+                        $resultSheet->getColumns()->addFromExpression($foreignKeyAlias);
+                        $queryBuilder->addAttribute($foreignKeyAlias);
+                        $resultSheet->getColumns()->remove($col);
+                        $relatedCollector->addExpression($expr);
+                        break;
                     case $expr->isMetaAttribute():
-                        if (! $col = $resultSheet->getColumns()->getByExpression($exprString)) {
-                            $col = $resultSheet->getColumns()->addFromExpression($exprString);
-                        }
-                        $queryBuilder->addAttribute($exprString, $col->getName());
+                        $queryBuilder->addAttribute($expr->__toString(), $col->getName());
                         break;
                     case $expr->isFormula():
-                        if (! $col = $resultSheet->getColumns()->getByExpression($expr)) {
-                            $col = $resultSheet->getColumns()->addFromExpression($expr);
-                        }
                         $calculatedCols[] = $col;
                         break;
                     default:
-                        throw new ActionConfigurationError($this, 'Expression `' . $exprString . '` cannot be read from web serivce response: only attribute aliases, formulas and scalar values allowed!');
+                        throw new ActionConfigurationError($this, 'Expression `' . $expr->__toString() . '` cannot be read from web serivce response: only attribute aliases, formulas and scalar values allowed!');
                 }
-            }
-            foreach ($calculatedCols as $col) {
-                $col->setValuesByExpression($col->getExpressionObj(), false);
             }
             $queryResult = $queryBuilder->readResponse($request, $response);
             $resultSheet->addRows($queryResult->getResultRows(), false, false);
+            foreach ($calculatedCols as $col) {
+                $col->setValuesByExpression($col->getExpressionObj(), false);
+            }
+            if (! $relatedCollector->isEmpty()) {
+                $relatedCollector->enrich($resultSheet);
+            }
         }
         return $resultSheet;
     }
@@ -1756,29 +1793,88 @@ class CallWebService extends AbstractAction implements iCallService
     /**
      * List of expressions to read from the response of the web service.
      * 
-     * Using this property you can tell the action to extract specific columns from the response of the web service
-     * if the action is based on an object with an HTTP query builder. The object will use that query builder 
-     * (e.g. `JsonUrlBuilder`) to parse the response and extract data - just like it would do for regular GET or 
-     * POST requests.
-     * 
-     * The values in the column list can be attribute aliases or formulas.
-     * 
-     * @uxon-property result_data_columns
-     * @uxon-type metamodel:attribute[]
-     * @uxon-template [""]
+     * @deprecated use setResultDataSheet() instead
      * 
      * @param UxonObject $arrayOfExpressions
      * @return $this
      */
     public function setResultDataColumns(UxonObject $arrayOfExpressions) : CallWebService
     {
-        $this->resultExpressionsToRead = $arrayOfExpressions->toArray();
+        $this->resultDataSheetUxon = new UxonObject([
+            'object_alias' => $this->getResultObject()->getAliasWithNamespace(),
+            'columns' => []
+        ]);
+        foreach ($arrayOfExpressions as $expression) {
+            $this->resultDataSheetUxon->appendToProperty('columns', new UxonObject([
+                'expression' => $expression
+            ]));
+        }
+        return $this;
+    }
+
+    /**
+     * Read the response into this data sheet using the query builder of the result object
+     * 
+     * Using this property you can tell the action to extract specific columns from the response of the web service
+     * if the action is based on an object with an HTTP query builder. The object will use that query builder
+     * (e.g. `JsonUrlBuilder`) to parse the response and extract data - just like it would do for regular GET or
+     * POST requests.
+     * 
+     * The column of the result sheet can be
+     * - direct attributes of the result object if they have data addresses
+     * - related attributes if the web service response includes the foreign keys AND the related data can be
+     * read by using that key only (typically only regular n-to-1 relations)
+     * - static formulas
+     * 
+     * Often narrow-scoped web services (e.g. to calculate something) have fixed input and output formats. These
+     * can be modeled as separate metaobject, that are neither readable nor writable because the workbench cannot
+     * use its regular read or write logic on them. The input object should then get an action describing the web
+     * service and that action should have a `result_data_sheet` transforming its response into usable data.
+     * This way, input and output of the service will be clearly visible in the model and easily usable in widgets
+     * and other actions.
+     * 
+     * ```
+     * {
+     *  "alias": "exface.UrlDataConnector.CallWebService",
+     *  "data_source_alias": "my.App.web_api",
+     *  "url": "api/v1/carrier-routes/search",
+     *  "content_type": "application/json",
+     *  "method": "POST",
+     *  "parameters_use_attributes": true,
+     *  "parameters_for_all_attributes_from_group": "~ALL",
+     *  "result_message_pattern": "/\"items\":\\s*(?<items>\\[[\\s\\S]*\\])/",
+     *  "error_message_pattern": "/\"title\":\"([^\"]*)\"/",
+     *  "input_object_alias": "my.App.CarrierRouteSearchCommand",
+     *  "result_data_sheet": {
+     *      "object_alias": "my.App.CarrierRouteSearchResponse",
+     *      "columns": [
+     *          {"attribute_alias": "rank"},
+     *          {"attribute_alias": "carrierId__LABEL"},
+     *          {"attribute_alias": "basePrice"}
+     *      ]
+     *  }
+     * }
+     * 
+     * ```
+     * 
+     * @uxon-property result_data_sheet
+     * @uxon-type \exface\Core\CommonLogic\DataSheets\DataSheet
+     * @uxon-template {"object_alias": "", "columns": [{"attribute_alias": ""}]}
+     * 
+     * @param UxonObject $uxon
+     * @return $this
+     */
+    public function setResultDataSheet(UxonObject $uxon) : CallWebService
+    {
+        $this->resultDataSheetUxon = $uxon;
         return $this;
     }
     
-    protected function getResultExpressionsToRead() : array
+    protected function getResultDataSheet() : DataSheetInterface
     {
-        return $this->resultExpressionsToRead;
+        if ($this->resultDataSheetUxon !== null) {
+            return DataSheetFactory::createFromUxon($this->getWorkbench(), $this->resultDataSheetUxon);
+        }
+        return DataSheetFactory::createForObject($this->getResultObject());
     }
-    
 }
