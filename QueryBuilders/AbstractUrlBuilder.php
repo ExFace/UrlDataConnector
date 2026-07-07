@@ -1270,7 +1270,7 @@ abstract class AbstractUrlBuilder extends AbstractQueryBuilder implements Psr7Qu
                     if ($data = $this->parseResponse($subquery)) {
                         $totalCnt = $totalCnt + $this->findRowCounter($data, $query);
                         $subquery_rows = $this->buildResultRows($data, $subquery);
-                        $subquery_rows = $this->readApplyPostprocessing($subquery_rows);
+                        $subquery_rows = $this->readApplyPostprocessing($subquery_rows, $data, $data_connection);
                         $result_rows = array_merge($result_rows, $subquery_rows);
                     }
                 }
