@@ -2,15 +2,31 @@
 namespace exface\UrlDataConnector\QueryBuilders;
 
 use exface\Core\CommonLogic\QueryBuilder\QueryPartFilter;
+use exface\Core\DataTypes\BooleanDataType;
 use exface\Core\DataTypes\NumberDataType;
+use exface\Core\Interfaces\DataSources\DataConnectionInterface;
 use exface\Core\Interfaces\Model\MetaObjectInterface;
 use exface\Core\Exceptions\QueryBuilderException;
+use exface\UrlDataConnector\Psr7DataQuery;
+use GuzzleHttp\Psr7\Request;
 
 /**
  * This is a query builder for JSON-based oData 4.0 APIs.
  * 
  * See the `AbstractUrlBuilder` and `OData2JsonUrlBuilder` for information about available 
- * data address properties.
+ * data address properties. 
+ * 
+ * The following chapter describes the OData4 logic and options compared to OData2 and generic JSON builders.
+ * 
+ * ## $select URL parameter
+ * 
+ * The OData4 query builder will automatically add a `$select` URL parameter for all attributes, that
+ * - have a data address
+ * - have a `odata_type` data address property (this makes sure they actually are OData properties)
+ * 
+ * You can explicitly control, if an attribute will be included in the `$select` or not via `odata_$select` data
+ * address property: set it to TRUE to force an attribute in the `$select` regardless of other settings or to
+ * FALSE to exclude it.
  * 
  * ## Pagination
  * 
@@ -27,6 +43,17 @@ use exface\Core\Exceptions\QueryBuilderException;
  */
 class OData4JsonUrlBuilder extends OData2JsonUrlBuilder
 {
+
+
+    /**
+     * Set to FALSE to exclude this attribute from the OData $select URL parameter
+     *
+     * @uxon-property odata_include_in_$select
+     * @uxon-target attribute
+     * @uxon-type boolean
+     */
+    const DAP_ODATA_INCLUDE_IN_SELECT = 'odata_include_in_$select';
+    
     /**
      * 
      * {@inheritDoc}
@@ -45,6 +72,56 @@ class OData4JsonUrlBuilder extends OData2JsonUrlBuilder
     protected function getDefaultPathToResponseRows() : string
     {
         return 'value';
+    }
+
+    /**
+     * OData posprocessing includes a check for "unrequested" pagination to avoid, that if we request
+     * an unpaged result, data is still "cut off" by the web service itself. In OData we can detect that
+     * by checking for `@odata.nextLink` in the response
+     * 
+     * @see JsonUrlBuilder::readApplyPostprocessing()
+     */
+    protected function readApplyPostprocessing(array $result_rows, $parsedResponse, DataConnectionInterface $connection) : array
+    {
+        // Make sure, we load ALL data if not using remote pagination - double check if, there is an `@odata.nextLink`
+        // because some OData services will actually force pagination even if you don't want one - e.g.
+        // Microsoft Graph in https://graph.microsoft.com/v1.0/me/memberOf. 
+        // So if we are reading unpaged (either explicitly or because remote paging is off), then having `@odata.nextLink`
+        // actually means, we need to follow it.
+        // TODO will this work with OData2? Only tested with OData4 in Microsoft Graph API
+        if (
+            (
+                // Read all explicitly
+                $this->getLimit() === null
+                // Paging is off, so we assume to read all
+                || ! $this->isRemotePaginationConfigured()
+            ) 
+            && null !== $nextLink = $this->getPaginationNextLink($parsedResponse)
+        ) {
+            try {
+                $nextPageRequest = new Request('GET', $nextLink);
+                $nextPageQuery = new Psr7DataQuery($nextPageRequest);
+                $nextPageQuery = $connection->query($nextPageQuery);
+                $nextPageParsed = $this->parseResponse($nextPageQuery);
+                $nextPageRows = $this->findRowData($nextPageParsed, $this->buildPathToResponseRows($nextPageQuery));
+                // Call this method recursively for the next page result too, so that will check for hidden
+                // pagination again and load subsequent pages
+                $nextPageRows = $this->readApplyPostprocessing($nextPageRows, $nextPageParsed, $connection);
+                $result_rows = array_merge($result_rows, $nextPageRows);
+            } catch (\Throwable $e) {
+                throw new QueryBuilderException('Cannot read `@odata.nextLink` in an unpaged query. ' . $e->getMessage(), null, $e);
+            }
+        }
+        
+        // Now after we have ALL the data, we can do all other postprocessing
+        $result_rows = parent::readApplyPostprocessing($result_rows, $parsedResponse, $connection);
+        
+        return $result_rows;
+    }
+    
+    protected function getPaginationNextLink(array $parsedResponse) : ?string
+    {
+        return $parsedResponse['@odata.nextLink'] ?? null;
     }
     
     /**
@@ -133,5 +210,35 @@ class OData4JsonUrlBuilder extends OData2JsonUrlBuilder
         }
         
         return parent::buildUrlFilterValue($qpart);
+    }
+
+
+
+    /**
+     * In OData4 we include the $select URL parameter by default for property-bound attributes
+     * 
+     * @see OData2JsonUrlBuilder::buildUrlParamSelect()
+     */
+    protected function buildUrlParamSelect(array $qparts) : string
+    {
+        $props = [];
+        foreach ($qparts as $qpart) {
+            $addr = $qpart->getDataAddress();
+            if (! $addr) {
+                continue;
+            }
+            $selectProp = $qpart->getDataAddressProperty(static::DAP_ODATA_INCLUDE_IN_SELECT);
+            if ($selectProp !== null) {
+                $selectProp = BooleanDataType::cast($selectProp) === false;
+            }
+            if ($selectProp === false) {
+                continue;
+            }
+            if ($selectProp !== true && ! $qpart->getDataAddressProperty(static::DAP_ODATA_TYPE)) {
+                continue;
+            }
+            $props[] = $addr;
+        }
+        return empty($props) ? '' : '$select=' . implode(',', $props) . '';
     }
 }
