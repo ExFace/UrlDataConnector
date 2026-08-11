@@ -1,0 +1,133 @@
+{
+    "object_alias": "exface.Core.OBJECT_BEHAVIORS",
+    "columns": [
+        {
+            "name": "_EXPORT_SUMMARY",
+            "hidden": true,
+            "attribute_alias": "NAME"
+        },
+        {
+            "name": "CREATED_ON",
+            "attribute_alias": "CREATED_ON"
+        },
+        {
+            "name": "MODIFIED_ON",
+            "attribute_alias": "MODIFIED_ON"
+        },
+        {
+            "name": "CREATED_BY_USER",
+            "attribute_alias": "CREATED_BY_USER"
+        },
+        {
+            "name": "MODIFIED_BY_USER",
+            "attribute_alias": "MODIFIED_BY_USER"
+        },
+        {
+            "name": "UID",
+            "attribute_alias": "UID"
+        },
+        {
+            "name": "BEHAVIOR",
+            "attribute_alias": "BEHAVIOR"
+        },
+        {
+            "name": "CONFIG_UXON",
+            "attribute_alias": "CONFIG_UXON"
+        },
+        {
+            "name": "OBJECT",
+            "attribute_alias": "OBJECT"
+        },
+        {
+            "name": "APP",
+            "attribute_alias": "APP"
+        },
+        {
+            "name": "NAME",
+            "attribute_alias": "NAME"
+        },
+        {
+            "name": "DESCRIPTION",
+            "attribute_alias": "DESCRIPTION"
+        },
+        {
+            "name": "DISABLED_FLAG",
+            "attribute_alias": "DISABLED_FLAG"
+        },
+        {
+            "name": "PRIORITY",
+            "attribute_alias": "PRIORITY"
+        }
+    ],
+    "rows": [
+        {
+            "_EXPORT_SUMMARY": "SwaggerUI for OpenAPI connections",
+            "CREATED_ON": "2026-08-11 15:53:10",
+            "MODIFIED_ON": "2026-08-11 16:00:20",
+            "CREATED_BY_USER": "0x31000000000000000000000000000000",
+            "MODIFIED_BY_USER": "0x31000000000000000000000000000000",
+            "UID": "0x11f1af31fd10e048af31025041000001",
+            "BEHAVIOR": "exface/core/Behaviors/WidgetModifyingBehavior.php",
+            "CONFIG_UXON": {
+                "only_page_roots": true,
+                "only_on_pages": [
+                    "exface.core.connections"
+                ],
+                "add_buttons": [
+                    {
+                        "caption": "OpenAPI",
+                        "hint": "Show OpenAPI spec if the connection has one (only works for web services!)",
+                        "action": {
+                            "alias": "exface.core.ShowDialog",
+                            "maximize": true,
+                            "input_object_alias": "exface.Core.CONNECTION",
+                            "input_rows_min": 1,
+                            "input_rows_max": 1,
+                            "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><title>code-block-braces</title><path d=\"M5 3C3.9 3 3 3.9 3 5S2.1 7 1 7V9C2.1 9 3 9.9 3 11S3.9 13 5 13H7V11H5V10C5 8.9 4.1 8 3 8C4.1 8 5 7.1 5 6V5H7V3M11 3C12.1 3 13 3.9 13 5S13.9 7 15 7V9C13.9 9 13 9.9 13 11S12.1 13 11 13H9V11H11V10C11 8.9 11.9 8 13 8C11.9 8 11 7.1 11 6V5H9V3H11M22 6V18C22 19.11 21.11 20 20 20H4C2.9 20 2 19.11 2 18V15H4V18H20V6H17.03V4H20C21.11 4 22 4.89 22 6Z\" /></svg>",
+                            "dialog": {
+                                "object_alias": "exface.Core.CONNECTION",
+                                "widgets": [
+                                    {
+                                        "widget_type": "Browser",
+                                        "value": "=Concatenate('api/swagger-ui/', ALIAS_WITH_NS)"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ]
+            },
+            "OBJECT": "0x33380000000000000000000000000000",
+            "APP": "0x11e6951dda3ba520b48b847beb4a5184",
+            "NAME": "SwaggerUI for OpenAPI connections",
+            "DESCRIPTION": "",
+            "DISABLED_FLAG": 0,
+            "PRIORITY": null
+        }
+    ],
+    "totals_rows": [],
+    "filters": {
+        "operator": "AND",
+        "base_object_alias": "exface.Core.OBJECT_BEHAVIORS",
+        "conditions": [
+            {
+                "expression": "APP",
+                "comparator": "=",
+                "value": "0x11e6951dda3ba520b48b847beb4a5184",
+                "object_alias": "exface.Core.OBJECT_BEHAVIORS"
+            }
+        ]
+    },
+    "rows_limit": null,
+    "rows_offset": 0,
+    "sorters": [
+        {
+            "attribute_alias": "CREATED_ON",
+            "direction": "ASC"
+        },
+        {
+            "attribute_alias": "UID",
+            "direction": "ASC"
+        }
+    ]
+}
