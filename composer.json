@@ -26,7 +26,8 @@
         "symfony/dom-crawler": "^4||^5||^6",
         "symfony/cache": "^4||^5||^6",
         "psr/cache": "^1||^2||^3",
-        "kevinrob/guzzle-cache-middleware": "^2||^3||^4||^5"
+        "kevinrob/guzzle-cache-middleware": "^2||^3||^4||^5",
+        "npm-asset/swagger-ui-dist": "^5"
     },
     "suggest": {
         "ruflin/elastica": "Needed to use the ElasticSearchConnector"

@@ -51,8 +51,8 @@ class HttpBasicAuth extends AbstractHttpAuthenticationProvider
      */
     public function getUser()
     {
-        if ((null === $user = $this->user) && ($this->connection instanceof HttpConnector)) {
-            $user = $this->connection->getUser();
+        if ((null === $user = $this->user) && ($this->getConnection() instanceof HttpConnector)) {
+            $user = $this->getConnection()->getUser();
         }
         
         if ($user !== null && $user !== '' && Expression::detectFormula($user)) {
@@ -84,8 +84,8 @@ class HttpBasicAuth extends AbstractHttpAuthenticationProvider
      */
     public function getPassword()
     {
-        if ((null === $password = $this->password) && ($this->connection instanceof HttpConnector)) {
-            $password = $this->connection->getPassword();
+        if ((null === $password = $this->password) && ($this->getConnection() instanceof HttpConnector)) {
+            $password = $this->getConnection()->getPassword();
         }
         
         if ($password !== null && $password !== '' && Expression::detectFormula($password)) {

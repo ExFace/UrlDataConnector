@@ -46,7 +46,7 @@ abstract class AbstractHttpAuthenticationProvider implements HttpAuthenticationP
         $this->connection = $dataConnection;
         $this->constructorUxon = $uxon;
         if ($uxon !== null) {
-            $this->importUxonObject($uxon, ['class']);
+            $this->importUxonObject($uxon);
         }
     }
     
@@ -98,5 +98,21 @@ abstract class AbstractHttpAuthenticationProvider implements HttpAuthenticationP
     public function isResponseUnauthenticated(ResponseInterface $response) : bool
     {
         return $response->getStatusCode() == 401;
+    }
+
+    /**
+     * Namespaced PHP class of the desired authentication provider
+     * 
+     * @uxon-property class
+     * @uxon-type metamodel:exface.UrlDataConnector.HTTP_AUTH_PROTOTYPE:CLASSNAME_WITH_NAMESPACE
+     * @uxon-required true
+     * 
+     * @param string $className
+     * @return $this
+     */
+    protected function setClass(string $className) : AbstractHttpAuthenticationProvider
+    {
+        // Do nothing - we already know the class. This method is just needed for the UXON autosuggest to work.
+        return $this;
     }
 }

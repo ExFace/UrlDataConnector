@@ -30,7 +30,7 @@ class HttpAuthenticationSchema extends UxonSchema
         $name = $rootPrototypeClass ?? $this->getDefaultPrototypeClass();
         
         foreach ($uxon as $key => $value) {
-            if (strcasecmp($key, 'class') === 0) {
+            if (strcasecmp($key, 'class') === 0 && trim($value ?? '') !== '') {
                 $name = $value;
                 break;
             }
