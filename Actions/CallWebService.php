@@ -632,13 +632,16 @@ class CallWebService extends AbstractAction implements iCallService
         
         // Add a placeholder renderer for all service parameters related to the body
         $params = $this->getParameters(self::PARAMETER_GROUP_BODY, $logbook);
+        $paramValues = [];
         foreach ($params as $param) {
             $name = $param->getName();
             $val = $data->getCellValue($name, $rowNr);
             $val = $this->prepareParamValue($param, $val) ?? '';
             $paramValues[$name] = $val;
         }
-        $rowRenderer->addPlaceholder(new ArrayPlaceholders($paramValues));
+        if (! empty($paramValues)) {
+            $rowRenderer->addPlaceholder(new ArrayPlaceholders($paramValues));
+        }
         
         // Add resolvers for input data, that is not described by service parameters
         $rowRenderer->addPlaceholder(new DataRowPlaceholders($data, $rowNr, '~input:'));
