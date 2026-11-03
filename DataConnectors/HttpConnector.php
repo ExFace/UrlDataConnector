@@ -35,6 +35,16 @@ use GuzzleHttp\Cookie\CookieJarInterface;
 use exface\Core\Events\Security\OnAuthenticationFailedEvent;
 use exface\UrlDataConnector\ModelBuilders\GenericUrlModelBuilder;
 use exface\Core\DataTypes\LogLevelDataType;
+use exface\Core\Interfaces\DataSources\FileDownloadConnectionInterface;
+use exface\Core\Interfaces\Filesystem\FileInterface;
+use exface\Core\CommonLogic\Filesystem\InMemoryFile;
+use exface\Core\DataTypes\FilePathDataType;
+use exface\Core\DataTypes\MimeTypeDataType;
+use exface\Core\Exceptions\InvalidArgumentException;
+use exface\Core\Exceptions\RuntimeException;
+use GuzzleHttp\Psr7\FnStream;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\UriResolver;
 
 /**
  * Connector for Websites, Webservices and other data sources accessible via HTTP, HTTPS, FTP, etc.
@@ -139,7 +149,7 @@ use exface\Core\DataTypes\LogLevelDataType;
  * @author Andrej Kabachnik
  *        
  */
-class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterface
+class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterface, FileDownloadConnectionInterface
 {
     private $user = null;
     private $password = null;
@@ -439,6 +449,111 @@ class HttpConnector extends AbstractUrlConnector implements HttpConnectionInterf
         }
         
         return $response;
+    }
+
+    /**
+     * Downloads a file within this connection's base address.
+     * 
+     * Redirects are not followed to avoid forwarding credentials to another origin.
+     * The byte limit is enforced while streaming; both response headers and downloaded
+     * contents are checked against the expected MIME type before returning the file.
+     * 
+     * {@inheritDoc}
+     * @see \exface\Core\Interfaces\DataSources\FileDownloadConnectionInterface::downloadFile()
+     */
+    public function downloadFile(string $url, string $filename, string $mimeType, int $maxBytes) : FileInterface
+    {
+        $baseUri = new Uri((string) $this->getUrl());
+        $uri = UriResolver::resolve($baseUri, new Uri($url));
+        // Compare decoded, normalized paths so encoded traversal cannot bypass the base-directory check.
+        $basePath = UriResolver::removeDotSegments(rawurldecode(UriResolver::resolve($baseUri, new Uri('.'))->getPath()));
+        $targetPath = UriResolver::removeDotSegments(rawurldecode($uri->getPath()));
+        if (! in_array($baseUri->getScheme(), ['http', 'https'], true)
+            || $baseUri->getHost() === '' || $uri->getScheme() !== $baseUri->getScheme()
+            || $uri->getHost() !== $baseUri->getHost() || $uri->getPort() !== $baseUri->getPort()
+            || $uri->getUserInfo() !== '' || strncmp($targetPath, $basePath, strlen($basePath)) !== 0) {
+            throw new InvalidArgumentException('File download URLs must remain within the configured HTTP connection base address.');
+        }
+        if ($maxBytes < 1) {
+            throw new InvalidArgumentException('File download limit must be positive.');
+        }
+        $mimeType = strtolower(trim(explode(';', $mimeType)[0]));
+        if ($mimeType === '') {
+            throw new InvalidArgumentException('An expected MIME type is required for file downloads.');
+        }
+        $filename = FilePathDataType::sanitizeFilename(
+            FilePathDataType::findFileName(FilePathDataType::normalize($filename, '/'), true)
+        );
+        if ($filename === '') {
+            throw new InvalidArgumentException('A filename is required for file downloads.');
+        }
+        
+        // Keep the request relative to the connection so its normal request and authentication handling applies.
+        $request = new Request('GET', UriResolver::relativize($baseUri, $uri)->withFragment(''), ['Accept' => '*/*']);
+        $stream = Utils::streamFor();
+        $failureReason = null;
+        $fileBytes = 0;
+        // Enforce the limit on actual writes, even when Content-Length is absent or inaccurate.
+        $sink = FnStream::decorate($stream, [
+            'write' => function (string $contents) use ($stream, $maxBytes, &$fileBytes, &$failureReason) {
+                if ($fileBytes + strlen($contents) > $maxBytes) {
+                    $failureReason = 'Download exceeded its byte limit.';
+                    throw new RuntimeException($failureReason);
+                }
+                $written = $stream->write($contents);
+                $fileBytes += $written;
+                return $written;
+            }
+        ]);
+        
+        try {
+            try {
+                $response = $this->sendRequest($request, [
+                    'allow_redirects' => false,
+                    'http_errors' => false,
+                    'connect_timeout' => 10,
+                    'timeout' => 30,
+                    'sink' => $sink,
+                    // Reject unsuitable responses before consuming their bodies.
+                    'on_headers' => function (ResponseInterface $response) use ($maxBytes, $mimeType, &$failureReason) {
+                        $contentType = strtolower(trim(explode(';', $response->getHeaderLine('Content-Type'))[0]));
+                        $length = $response->getHeaderLine('Content-Length');
+                        if ($response->getStatusCode() !== 200) {
+                            $failureReason = 'File server returned HTTP ' . $response->getStatusCode() . '; redirects are not followed.';
+                        } elseif ($length !== '' && (! ctype_digit($length) || (float) $length > $maxBytes)) {
+                            $failureReason = 'Download Content-Length exceeds its byte limit or is invalid.';
+                        } elseif ($contentType !== '' && $contentType !== 'application/octet-stream' && $contentType !== $mimeType) {
+                            $failureReason = 'Response MIME type does not match the expected file type.';
+                        }
+                        if ($failureReason !== null) {
+                            throw new RuntimeException($failureReason);
+                        }
+                    }
+                ]);
+            } catch (\Throwable $error) {
+                // Preserve the validation reason when the HTTP client wraps a callback exception.
+                throw new RuntimeException($failureReason ?? 'HTTP file download failed.', null, $error);
+            }
+            if ($response === null || $response->getStatusCode() !== 200) {
+                throw new RuntimeException('File server did not return a successful response.');
+            }
+            $stream->rewind();
+            $contents = $stream->getContents();
+            if ($contents === '') {
+                throw new RuntimeException('File server returned an empty file.');
+            }
+            if (! function_exists('finfo_open')) {
+                throw new RuntimeException('The PHP fileinfo extension is required to validate downloads.');
+            }
+            // Headers alone are not proof of file type, especially for generic octet-stream responses.
+            $detectedMimeType = MimeTypeDataType::findMimeTypeOfString($contents);
+            if ($detectedMimeType === false || strtolower(trim(explode(';', $detectedMimeType)[0])) !== $mimeType) {
+                throw new RuntimeException('Downloaded file type does not match the expected MIME type.');
+            }
+            return new InMemoryFile($contents, $filename, $mimeType);
+        } finally {
+            $sink->close();
+        }
     }
     
     /**
