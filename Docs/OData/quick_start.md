@@ -11,7 +11,7 @@ Each OData service should be modeled as a sperate data source. The $metadata doc
 
 The only mandatory configuration option is the `url`, which should point to the root of your OData service. Make sure, it ends with a slash (e.g. `http://services.odata.org/V4/Northwind/Northwind.svc/`). 
 
-The name and alias of your connection can be anything - refer to the general [data source documentation](https://github.com/exface/core/blob/1.x-dev/Docs/understanding_the_metamodel/data_sources_and_connections.md) for details.
+The name and alias of your connection can be anything - refer to the general [data source documentation](https://github.com/exface/core/blob/1.x-dev/Docs/Metamodel/data_sources_and_connections.md) for details.
 
 You don't need to specify a user and a password in the connection settings: if you prefer per-user credentials, remove the corresponding fields here and create credential sets for your users instead - see the [general documentation for credential storage](https://github.com/ExFace/Core/blob/0.x-dev/Docs/creating_metamodels/Data_connection_credentials_and_user-specific_settings.md).
 
